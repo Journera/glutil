@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+
+import argparse
+
+# this is so this script can import from the lib directory
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from glutil import Partitioner, GlutilError
+from glutil.utils import print_batch_errors
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="""
+Delete missing partitions in a table.
+
+This will remove any partitions currently in the database that do not exist on disk.
+"""
+    )
+    parser.add_argument(
+        "database",
+        type=str,
+        default="",
+        help="The Athena/Glue database containing the table you want to search for partitions")
+    parser.add_argument(
+        "table",
+        type=str,
+        help="The Athena/Glue table you want to search for partitions")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform a \"dry-run\", show the actions to be taken without actually performing them.")
+    parser.add_argument("--profile", "-p", type=str, help="AWS profile to use")
+    args = parser.parse_args()
+
+    try:
+        partitioner = Partitioner(args.database, args.table, args.profile)
+    except GlutilError as e:
+        print("Error:", e.message)
+        sys.exit(1)
+
+    to_delete = partitioner.missing_partitions()
+    print("Found {} partitions to delete:".format(len(to_delete)))
+
+    if args.dry_run:
+        for partition in to_delete:
+            print("\t", str(partition))
+
+    if not args.dry_run:
+        errors = partitioner.delete_partitions(to_delete)
+        if errors:
+            utils.print_batch_errors(errors)

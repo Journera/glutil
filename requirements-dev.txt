@@ -1,0 +1,6 @@
+boto3>=1.9
+-e git+https://github.com/Journera/moto@glue-endpoints#egg=moto
+nose>=1.3.7
+faker>=1
+coverage>=4.5
+sure>=1.4
