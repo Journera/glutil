@@ -1,54 +1,12 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, call
 from moto import mock_glue
-from faker import Faker
+from .helper import GlueHelper
 import boto3
-import random
-import string
 import sure
 
 from glutil import DatabaseCleaner
 from glutil.database_cleaner import Table
-
-
-class DatabaseCleanerTestHelper(object):
-    def __init__(self):
-        self.faker = Faker()
-
-    def create_table_input(
-            self,
-            database="test_database",
-            name=None,
-            location=None):
-        if not name:
-            to = random.randrange(5, 15)
-            name = "".join(random.choice(string.ascii_lowercase)
-                           for i in range(0, to))
-
-        if not location:
-            path = self.faker.uri_path()
-            location = "s3://test-bucket/{}".format(path)
-
-        return dict(
-            DatabaseName=database,
-            TableInput=dict(
-                Name=name,
-                TableType="EXTERNAL_TABLE",
-                StorageDescriptor=dict(
-                    Columns=[
-                        dict(
-                            Name="field",
-                            Type="string")],
-                    Compressed=False,
-                    InputFormat="org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
-                    OutputFormat="org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
-                    Location=location,
-                )))
-
-    def create_database_input(self, database_name="test_database"):
-        return dict(DatabaseInput=dict(
-            Name=database_name,
-            Description="You know, for testing"))
 
 
 class DatabaseCleanerTest(TestCase):
@@ -57,7 +15,7 @@ class DatabaseCleanerTest(TestCase):
 
     def setUp(self):
         super().setUp()
-        self.helper = DatabaseCleanerTestHelper()
+        self.helper = GlueHelper()
 
     @mock_glue
     def test_table_trees(self):
@@ -70,10 +28,11 @@ class DatabaseCleanerTest(TestCase):
         client.create_table(**table1_input)
 
         table2_input = self.helper.create_table_input(
+            name="child",
             location="s3://test-bucket/table/child/")
         client.create_table(**table2_input)
 
-        cleaner = DatabaseCleaner("test_database")
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
 
         trees = cleaner.table_trees
         tree = trees["test-bucket"]
@@ -111,6 +70,7 @@ class DatabaseCleanerTest(TestCase):
         client.create_table(**table1_input)
 
         table2_input = self.helper.create_table_input(
+            name="child",
             location="s3://test-bucket/table/child/")
         client.create_table(**table2_input)
 
