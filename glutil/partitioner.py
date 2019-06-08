@@ -91,19 +91,20 @@ class PartitionMap(object):
 
 
 class Partitioner(object):
-    def __init__(self, database, table, aws_profile=None):
+    def __init__(self, database, table, aws_profile=None, aws_region=None):
         self.database = database
         self.table = table
 
-        self.session = boto3.Session(profile_name=aws_profile)
+        self.session = boto3.Session(
+            profile_name=aws_profile,
+            region_name=aws_region)
         self.s3 = self.session.client("s3")
         self.glue = self.session.client("glue")
 
         try:
             self.table_definition = self.glue.get_table(
                 DatabaseName=self.database,
-                Name=self.table,
-            )
+                Name=self.table)
         except self.glue.exceptions.AccessDeniedException as e:  # pragma: no cover
             raise GlutilError(
                 message="You do not have permission to run GetTable",

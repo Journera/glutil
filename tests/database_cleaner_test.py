@@ -53,6 +53,7 @@ class DatabaseCleanerTestHelper(object):
 
 class DatabaseCleanerTest(TestCase):
     database = "test_database"
+    region = "us-east-1"
 
     def setUp(self):
         super().setUp()
@@ -60,7 +61,7 @@ class DatabaseCleanerTest(TestCase):
 
     @mock_glue
     def test_table_trees(self):
-        client = boto3.client("glue")
+        client = boto3.client("glue", region_name=self.region)
         database_input = self.helper.create_database_input()
         client.create_database(**database_input)
 
@@ -101,7 +102,7 @@ class DatabaseCleanerTest(TestCase):
 
     @mock_glue
     def test_child_tables(self):
-        client = boto3.client("glue")
+        client = boto3.client("glue", region_name=self.region)
         database_input = self.helper.create_database_input()
         client.create_database(**database_input)
 
@@ -113,7 +114,7 @@ class DatabaseCleanerTest(TestCase):
             location="s3://test-bucket/table/child/")
         client.create_table(**table2_input)
 
-        cleaner = DatabaseCleaner("test_database")
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
 
         child_tables = cleaner.child_tables()
         child_tables.should.have.length_of(1)
@@ -121,7 +122,7 @@ class DatabaseCleanerTest(TestCase):
 
     @mock_glue
     def test_child_tables_same_location(self):
-        client = boto3.client("glue")
+        client = boto3.client("glue", region_name=self.region)
         database_input = self.helper.create_database_input()
         client.create_database(**database_input)
 
@@ -133,7 +134,7 @@ class DatabaseCleanerTest(TestCase):
             name="table-foobarbaz", location="s3://test-bucket/table/")
         client.create_table(**table2_input)
 
-        cleaner = DatabaseCleaner("test_database")
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
 
         print(cleaner.table_trees)
 
@@ -144,7 +145,7 @@ class DatabaseCleanerTest(TestCase):
 
     @mock_glue
     def test_delete_tables(self):
-        client = boto3.client("glue")
+        client = boto3.client("glue", region_name=self.region)
         database_input = self.helper.create_database_input()
         client.create_database(**database_input)
 
@@ -160,7 +161,7 @@ class DatabaseCleanerTest(TestCase):
         table2_input["TableInput"]["DatabaseName"] = table2_input["DatabaseName"]
         table2 = Table(table2_input["TableInput"])
 
-        cleaner = DatabaseCleaner("test_database")
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
 
         result = cleaner.delete_tables([table1, table2])
         result.should.be.empty

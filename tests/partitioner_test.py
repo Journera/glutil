@@ -18,6 +18,7 @@ class PartitionerTest(TestCase):
     bucket = "test-bucket"
     database = "test_database"
     table = "test_table"
+    region = "us-east-1"
 
     partition_keys = [
         dict(Name="year", Type="int"),
@@ -134,7 +135,7 @@ class PartitionerTest(TestCase):
     def test_find_partitions_in_s3(self):
         partitions = set(self.create_fake_data())
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         found_partitions = partitioner.partitions_on_disk()
 
         found_partitions_by_values = {
@@ -167,7 +168,7 @@ class PartitionerTest(TestCase):
                 "Values": partition.values,
                 "StorageDescriptor": {"Location": partition.location}})
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
 
         create_partitions_mock = MagicMock(return_value=[])
         partitioner.glue.batch_create_partition = create_partitions_mock
@@ -183,7 +184,7 @@ class PartitionerTest(TestCase):
         create the partition"""
         partition = self.create_fake_data(count=1)[0]
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
 
         create_partitions_mock = MagicMock(return_value={
             "Errors": [{
@@ -261,7 +262,7 @@ class PartitionerTest(TestCase):
     def test_delete_partitions_in_groups_of_twenty_five(self):
         partitions = sorted(self.create_fake_data(count=30))
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         partitioner.create_new_partitions()
 
         mock = MagicMock(return_value=[])
@@ -298,7 +299,7 @@ class PartitionerTest(TestCase):
                 },
             })
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         bad_partitions = partitioner.bad_partitions()
 
         bad_partitions.should.have.length_of(1)
@@ -316,7 +317,7 @@ class PartitionerTest(TestCase):
                 },
             })
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         missing_partitions = partitioner.missing_partitions()
 
         missing_partitions.should.have.length_of(1)
@@ -347,7 +348,7 @@ class PartitionerTest(TestCase):
             TableName=self.table,
             PartitionInputList=batch_input)
 
-        partitioner = Partitioner(self.database, self.table)
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         mock = MagicMock()
         partitioner.glue.update_partition = mock
 

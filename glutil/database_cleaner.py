@@ -109,9 +109,11 @@ class DatabaseCleaner(object):
     creates tables which it should've picked up as Partitions.
     """
 
-    def __init__(self, database, aws_profile=None):
+    def __init__(self, database, aws_profile=None, aws_region=None):
         self.database = database
-        self.session = boto3.Session(profile_name=aws_profile)
+        self.session = boto3.Session(
+            profile_name=aws_profile,
+            region_name=aws_region)
         self.glue = self.session.client("glue")
 
     @property
