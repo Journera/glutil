@@ -1,7 +1,7 @@
 import re
 import boto3
 from functools import total_ordering
-from .utils import grouper, GlutilError
+from .utils import grouper, GlutilError, paginated_response
 
 
 @total_ordering
@@ -167,24 +167,12 @@ class Partitioner(object):
         return items
 
     def existing_partitions(self):
-        raw_partitions = []
-        next_token = None
-
         args = {
             "DatabaseName": self.database,
             "TableName": self.table,
         }
-
-        while True:
-            if next_token:
-                args["NextToken"] = next_token
-            resp = self.glue.get_partitions(**args)
-            next_token = resp.get("NextToken", None)
-
-            raw_partitions.extend(resp["Partitions"])
-
-            if not next_token:
-                break
+        raw_partitions = paginated_response(
+            self.glue.get_partitions, args, "Partitions")
 
         return sorted([self._parse_partition(p) for p in raw_partitions])
 
