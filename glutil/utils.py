@@ -10,7 +10,7 @@ class GlutilError(Exception):  # pragma: no cover
 
 def grouper(iterable, n):
     args = [iter(iterable)] * n
-    return zip_longest(*args)
+    return map(lambda x: list(filter(None, x)), zip_longest(*args))
 
 
 def paginated_response(function, args, container_name):

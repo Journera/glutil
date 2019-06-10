@@ -45,6 +45,6 @@ class UtilTest(TestCase):
         groups = list(grouper([1, 2, 3, 4, 5], 2))
 
         groups.should.have.length_of(3)
-        groups[0].should.equal((1, 2))
-        groups[1].should.equal((3, 4))
-        groups[2].should.equal((5, None))
+        groups[0].should.equal([1, 2])
+        groups[1].should.equal([3, 4])
+        groups[2].should.equal([5])
