@@ -125,4 +125,3 @@ class GlueHelper(object):
                 partition = self.create_partition_data(prefix=prefix, bucket=bucket)
             partitions.append(partition)
         return partitions
-

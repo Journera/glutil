@@ -9,7 +9,7 @@ import os
 import sys
 from shutil import rmtree
 
-from setuptools import find_packages, setup, Command
+from setuptools import setup, Command
 
 # Package meta-data.
 NAME = 'glutil'
@@ -109,7 +109,7 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=['glutil']
+    packages=['glutil'],
     # entry_points={
     #     'console_scripts': ['mycli=mymodule:cli'],
     # },

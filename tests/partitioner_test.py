@@ -3,11 +3,9 @@ from unittest.mock import MagicMock, call, ANY
 from moto import mock_s3, mock_glue
 from .helper import GlueHelper
 import boto3
-import botocore
-import random
-import sure
+import sure  # noqa: F401
 
-from glutil import Partitioner, Partition, GlutilError
+from glutil import Partitioner, Partition
 
 
 class PartitionerTest(TestCase):
@@ -211,8 +209,8 @@ class PartitionerTest(TestCase):
     def test_delete_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
+        self.helper.create_partition_data()
 
-        partition = self.helper.create_partition_data()
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         partitioner.create_new_partitions()
 

@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock
 from io import StringIO
 import sys
-import sure
+import sure  # noqa: F401
 
 from glutil.utils import paginated_response, print_batch_errors, grouper
 

@@ -1,9 +1,8 @@
 from unittest import TestCase
-from unittest.mock import MagicMock, call
 from moto import mock_glue
 from .helper import GlueHelper
 import boto3
-import sure
+import sure  # noqa: F401
 
 from glutil import DatabaseCleaner
 from glutil.database_cleaner import Table

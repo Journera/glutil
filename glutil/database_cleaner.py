@@ -1,5 +1,4 @@
 import boto3
-import sys
 from .utils import paginated_response, GlutilError
 
 
