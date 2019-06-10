@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 
 from glutil.partitioner import Partitioner
+import glutil.serverless_function as function
 
 
 def handle(event, context):
-    database = event["database"]
-    table = event["table"]
-
-    if "profile" in event:
-        profile = event["profile"]
-    else:
-        profile = None
-
-    partitioner = Partitioner(database, table, profile)
-    partitioner.create_new_partitions()
+    function.handle(event, context)
 
 
 if __name__ == "__main__":

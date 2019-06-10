@@ -187,46 +187,17 @@ class Partitioner(object):
 
         return Partition(*values, raw=partition)
 
-    def create_new_partitions(self):
-        print(
-            "Running partitioner for {}.{}".format(
-                self.database,
-                self.table))
-        print("\tLooking for partitions in s3://{}/{}".format(self.bucket, self.prefix))
+    def create_partitions(self, partitions):
+        groups = grouper(partitions, 100)
 
-        found_partitions = set(self.partitions_on_disk())
-        existing_partitions = set(self.existing_partitions())
-        partitions = sorted(found_partitions - existing_partitions)
+        for group in groups:
+            partition_input = list(map(self._partition_input, group))
 
-        print("\tfound {} new partitions to create".format(len(partitions)))
-
-        # break early
-        if len(partitions) == 0:
-            return
-
-        if len(partitions) <= 50:
-            print("\t{}".format(", ".join(map(str, partitions))))
-
-        groups = list(grouper(partitions, 100))
-        num_groups = len(groups)
-
-        all_errors = []
-        for i, group in enumerate(groups):
-            print("\tCreating chunk {} of {}".format(i + 1, num_groups))
-            current_partitions = filter(None, group)
-            errors = self._create_partitions(current_partitions)
-            if errors:
-                all_errors.extend(errors)
-        return all_errors
-
-    def _create_partitions(self, partitions):
-        partition_input = list(map(self._partition_input, partitions))
-
-        response = self.glue.batch_create_partition(
-            DatabaseName=self.database,
-            TableName=self.table,
-            PartitionInputList=partition_input,
-        )
+            response = self.glue.batch_create_partition(
+                DatabaseName=self.database,
+                TableName=self.table,
+                PartitionInputList=partition_input,
+            )
 
         if "Errors" in response:
             return response["Errors"]
@@ -306,13 +277,8 @@ class Partitioner(object):
         groups = grouper(partitions_to_delete, 25)
 
         for group in groups:
-            # the grouper function fills the final group with Nones to reach
-            # the determined length. We need to remove those Nones
-            partitions = filter(None, group)
-
             request_input = [
-                {"Values": [p.year, p.month, p.day, p.hour]}
-                for p in partitions]
+                {"Values": [p.year, p.month, p.day, p.hour]} for p in group]
 
             response = self.glue.batch_delete_partitions(
                 DatabaseName=self.database,
