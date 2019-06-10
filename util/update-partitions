@@ -40,4 +40,9 @@ If the underlying location of the data is moved, and the table's location is upd
         print("Error:", e.message)
         sys.exit(1)
 
-    partitioner.update_moved_partitions(dry_run=args.dry_run)
+    moved = partitioner.find_moved_partitions()
+
+    if not args.dry_run:
+        errors = partitioner.update_partition_locations(moved)
+        if errors:
+            print_batch_errors(errors, "partition", "Partition")

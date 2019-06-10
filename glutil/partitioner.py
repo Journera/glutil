@@ -305,40 +305,81 @@ class Partitioner(object):
 
         return errors
 
-    def update_moved_partitions(self, dry_run=False):
-        """Find matched pairs of partitions on disk and partitions in the
-        catalog with the same values, and update the catalog to reflect the
-        found disk location"""
+    def find_moved_partitions(self):
+        """Find partitions that have been moved to the table's new location.
+
+        This function expects that the table's location has already
+        been updated in the glue catalog, and that the underlying data has also
+        been moved.
+
+        Returns:
+            List of Partitions that exist in the updated S3 location, that
+            match the values of a partition that exists in the current catalog,
+            that also have a different location than existing partition in the
+            catalog.
+        """
 
         existing = self.existing_partitions()
         found = PartitionMap(self.partitions_on_disk())
 
-        not_updated = set(existing)
+        moved = []
         for partition in existing:
             matching = found.get(partition)
             if matching:
-                not_updated.remove(partition)
-
                 if partition != matching:
-                    print("Updating", partition)
+                    moved.append(matching)
 
-                    print(partition, matching)
-                    print(partition.location, matching.location)
-                    print()
+        return moved
 
-                    if not dry_run:
-                        partition.raw["StorageDescriptor"]["Location"] = matching.location
-                        for key in [
-                            "CreationTime",
-                            "DatabaseName",
-                                "TableName"]:
-                            if key in partition.raw:
-                                del partition.raw[key]
+    def update_partition_locations(self, moved):
+        print(moved)
+        """Update matched partition locations.
 
-                        self.glue.update_partition(
-                            DatabaseName=self.database,
-                            TableName=self.table,
-                            PartitionValueList=partition.raw["Values"],
-                            PartitionInput=partition.raw)
+        This function will use the existing partition definition in the glue
+        catalog and only update the StorageDescriptor.Location in the catalog.
+        All other details will remain the same.
 
-        print(len(not_updated), "partition not updated")
+        Args:
+            partitions (:obj:`list` of :obj:`Partition`): The partitions to be
+                updated. The values should match those currently in the
+                catalog, but the location should be the updated location.
+                The output of find_moved_partitions matches the expected input.
+
+        Returns:
+            List of AWS Error objects, in the form of
+            {
+                "ErrorDetail": {
+                    "ErrorCode": "TheErrorName",
+                    "ErrorMessage": "short description"
+                }
+            }
+        """
+
+        errors = []
+        for partition in moved:
+            try:
+                resp = self.glue.get_partition(
+                    DatabaseName=self.database,
+                    TableName=self.table,
+                    PartitionValues=partition.values)
+
+                definition = resp["Partition"]
+
+                definition["StorageDescriptor"]["Location"] = partition.location
+                for key in ["CreationTime", "DatabaseName", "TableName"]:
+                    del definition[key]
+
+                resp = self.glue.update_partition(
+                    DatabaseName=self.database,
+                    TableName=self.table,
+                    PartitionValueList=definition["Values"],
+                    PartitionInput=definition)
+            except self.glue.exceptions.EntityNotFoundException as e:
+                errors.append({
+                    "Partition": partition.values,
+                    "ErrorDetail": {
+                        "ErrorCode": e.response["Error"]["Code"],
+                        "ErrorMessage": e.response["Error"]["Message"]
+                    }})
+
+        return errors

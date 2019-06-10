@@ -273,7 +273,66 @@ class PartitionerTest(TestCase):
 
     @mock_s3
     @mock_glue
-    def test_update_moved_partitions(self):
+    def test_find_moved_partitions(self):
+        old_location = "s3://old-bucket/table/"
+
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        partitions = sorted(self.helper.create_many_partitions(count=15))
+
+        batch_input = []
+        calls = []
+        for partition in partitions:
+            batch_input.append({
+                "Values": partition.values,
+                "StorageDescriptor": {
+                    "Location": f"{old_location}/data/"
+                }
+            })
+
+        self.glue.batch_create_partition(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionInputList=batch_input)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        moved = partitioner.find_moved_partitions()
+
+        moved.should.have.length_of(len(partitions))
+
+        moved.sort()
+        partitions.sort()
+
+        for idx, partition in enumerate(partitions):
+            moved[idx].should.equal(partition)
+
+    @mock_s3
+    @mock_glue
+    def test_find_moved_partitions_with_missing_partitions(self):
+        old_location = "s3://old-bucket/table/"
+
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        self.glue.create_partition(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionInput={
+                "Values": ["2019", "01", "01", "01"],
+                "StorageDescriptor": { "Location": f"{old_location}/data/" }
+            })
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        mock = MagicMock()
+        partitioner.glue.update_partition = mock
+
+        updated = partitioner.find_moved_partitions()
+        updated.should.be.empty
+
+    @mock_s3
+    @mock_glue
+    def test_update_partition_locations(self):
         old_location = "s3://old-bucket/table/"
 
         self.s3.create_bucket(Bucket=self.bucket)
@@ -306,9 +365,63 @@ class PartitionerTest(TestCase):
         mock = MagicMock()
         partitioner.glue.update_partition = mock
 
-        partitioner.update_moved_partitions()
+        moved = partitioner.find_moved_partitions()
+        errors = partitioner.update_partition_locations(moved)
 
+        errors.should.be.empty
         mock.assert_has_calls(calls, any_order=True)
+
+    @mock_glue
+    def test_update_partition_locations_with_non_existent_partition(self):
+        self.helper.make_database_and_table()
+        bad_partition = Partition("2019", "01", "01", "01", "s3://who/cares/")
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        mock = MagicMock()
+        partitioner.glue.update_partition = mock
+
+        errors = partitioner.update_partition_locations([bad_partition])
+        errors.should.have.length_of(1)
+        errors[0]["Partition"].should.equal(bad_partition.values)
+        mock.assert_not_called()
+
+    @mock_glue
+    def test_update_partition_locations_with_mix_of_good_and_bad(self):
+        old_location = "s3://old-bucket/table/"
+        self.helper.make_database_and_table()
+
+        good_old_location = "s3://old-bucket/table/data1/"
+        good_new_location = f"s3://{self.bucket}/{self.table}/2019-01-01-01/"
+        good_partition = Partition("2019", "01", "01", "01", good_old_location)
+        bad_partition = Partition("2018", "02", "02", "02", "s3://old-bucket/table/data2/")
+
+        self.glue.create_partition(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionInput={
+                "Values": good_partition.values,
+                "StorageDescriptor": { "Location": good_partition.location }
+            })
+
+        good_partition.location = good_new_location
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        mock = MagicMock()
+        partitioner.glue.update_partition = mock
+
+        errors = partitioner.update_partition_locations([bad_partition, good_partition])
+
+        mock.assert_called_with(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionValueList=good_partition.values,
+            PartitionInput={
+                "Values": good_partition.values,
+                "StorageDescriptor": {"Location": good_new_location}
+            })
+
+        errors.should.have.length_of(1)
+        errors[0]["Partition"].should.equal(bad_partition.values)
 
 
 class PartitionTest(TestCase):
