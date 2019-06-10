@@ -113,10 +113,8 @@ class PartitionerTest(TestCase):
 
         partitioner.create_partitions(partitions)
 
-        first_list = [partitioner._partition_input(p)
-                for p in partitions[:100]]
-        second_list = [partitioner._partition_input(p)
-                for p in partitions[100:]]
+        first_list = [partitioner._partition_input(p) for p in partitions[:100]]
+        second_list = [partitioner._partition_input(p) for p in partitions[100:]]
         calls = [
             call(
                 DatabaseName=self.database,
@@ -152,7 +150,6 @@ class PartitionerTest(TestCase):
 
         found_partitions.should.have.length_of(1)
         found_partitions[0].location.should.equal(full_location)
-
 
     @mock_s3
     @mock_glue
@@ -282,7 +279,6 @@ class PartitionerTest(TestCase):
         partitions = sorted(self.helper.create_many_partitions(count=15))
 
         batch_input = []
-        calls = []
         for partition in partitions:
             batch_input.append({
                 "Values": partition.values,
@@ -320,7 +316,7 @@ class PartitionerTest(TestCase):
             TableName=self.table,
             PartitionInput={
                 "Values": ["2019", "01", "01", "01"],
-                "StorageDescriptor": { "Location": f"{old_location}/data/" }
+                "StorageDescriptor": {"Location": f"{old_location}/data/"}
             })
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
@@ -387,7 +383,6 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     def test_update_partition_locations_with_mix_of_good_and_bad(self):
-        old_location = "s3://old-bucket/table/"
         self.helper.make_database_and_table()
 
         good_old_location = "s3://old-bucket/table/data1/"
@@ -400,7 +395,7 @@ class PartitionerTest(TestCase):
             TableName=self.table,
             PartitionInput={
                 "Values": good_partition.values,
-                "StorageDescriptor": { "Location": good_partition.location }
+                "StorageDescriptor": {"Location": good_partition.location}
             })
 
         good_partition.location = good_new_location

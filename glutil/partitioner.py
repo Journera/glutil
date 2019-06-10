@@ -125,7 +125,6 @@ class Partitioner(object):
                 message=f"Error, could not find {entity_message}",
                 source=e)
 
-
         self.storage_descriptor = self.table_definition["Table"]["StorageDescriptor"]
 
         self.bucket, self.prefix = self._get_bucket()
