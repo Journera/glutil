@@ -133,10 +133,12 @@ class DatabaseCleaner(object):
                 ))
         except self.glue.exceptions.EntityNotFoundException as e:  # pragma: no cover
             raise GlutilError(
+                error_type="EntityNotFound",
                 message="No `{}` table found".format(self.database),
                 source=e)
         except self.glue.exceptions.AccessDeniedException as e:  # pragma: no cover
             raise GlutilError(
+                error_type="AccessDenied",
                 message="You do not have permissions to call glue:GetTables",
                 source=e)
 

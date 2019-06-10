@@ -2,7 +2,8 @@ from itertools import zip_longest
 
 
 class GlutilError(Exception):  # pragma: no cover
-    def __init__(self, message=None, source=None):
+    def __init__(self, error_type=None, message=None, source=None):
+        self.error_type = error_type
         self.source = source
         self.message = message
         super().__init__(self, message)

@@ -107,6 +107,7 @@ class Partitioner(object):
                 Name=self.table)
         except self.glue.exceptions.AccessDeniedException as e:  # pragma: no cover
             raise GlutilError(
+                error_type="AccessDenied",
                 message="You do not have permission to run GetTable",
                 source=e)
 
