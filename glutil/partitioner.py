@@ -1,5 +1,6 @@
 import re
 import boto3
+import botocore
 from functools import total_ordering
 from .utils import grouper, GlutilError, paginated_response
 
@@ -95,9 +96,16 @@ class Partitioner(object):
         self.database = database
         self.table = table
 
-        self.session = boto3.Session(
-            profile_name=aws_profile,
-            region_name=aws_region)
+        try:
+            self.session = boto3.Session(
+                profile_name=aws_profile,
+                region_name=aws_region)
+        except botocore.exceptions.ProfileNotFound as e:
+            raise GlutilError(
+                error_type="ProfileNotFound",
+                message=f"No such profile {aws_profile}.",
+                source=e)
+
         self.s3 = self.session.client("s3")
         self.glue = self.session.client("glue")
 
@@ -110,6 +118,13 @@ class Partitioner(object):
                 error_type="AccessDenied",
                 message="You do not have permission to run GetTable",
                 source=e)
+        except self.glue.exceptions.EntityNotFoundException as e:
+            entity_message = e.response["Error"]["Message"]
+            raise GlutilError(
+                error_type="EntityNotFound",
+                message=f"Error, could not find {entity_message}",
+                source=e)
+
 
         self.storage_descriptor = self.table_definition["Table"]["StorageDescriptor"]
 
