@@ -9,7 +9,7 @@ and in most cases you should just do that instead of running this script.
 """
 
 
-delete_bad_partitons_help = """
+delete_bad_partitions_help = """
 Delete "bad" partitions in a table.
 
 "Bad" partitions are those where the S3 location does not match the expected
@@ -57,12 +57,20 @@ we didn't want or expect.
 delete_missing_partitions_help = """
 Delete missing partitions in a table.
 
-This will remove any partitions currently in the database that do not exist on disk.
+This will remove any partitions currently in the database that do not exist on
+disk.
 """
 
 
 update_partitions_help = """
 Update partition locations.
 
-If the underlying location of the data is moved, and the table's location is updated to match, this script will attempt to match known partitions with partitions found in the new location, and update the corresponding partitions with new locations
+If the underlying location of the data is moved, and the table's location is
+updated to match, this script will attempt to match known partitions with
+partitions found in the new location, and update the corresponding partitions
+with new locations.
+
+NOTE: this does not move the data, it will only update partitions found in the
+new location. You must move the data and update the table's location yourself,
+outside of this script.
 """
