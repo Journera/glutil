@@ -125,6 +125,36 @@ class DatabaseCleanerTest(TestCase):
         result = cleaner.delete_tables([table1, table2])
         result.should.be.empty
 
+    @mock_glue
+    def tests_refresh_tree(self):
+        client = boto3.client("glue", region_name=self.region)
+        database_input = self.helper.create_database_input()
+        client.create_database(**database_input)
+
+        table1_input = self.helper.create_table_input(
+            name="table", location="s3://test-bucket/table/")
+        client.create_table(**table1_input)
+        table1_input["TableInput"]["DatabaseName"] = table1_input["DatabaseName"]
+        table1 = Table(table1_input["TableInput"])
+
+        table2_input = self.helper.create_table_input(
+            name="table-foobarbaz", location="s3://test-bucket/table/")
+        client.create_table(**table2_input)
+        table2_input["TableInput"]["DatabaseName"] = table2_input["DatabaseName"]
+        table2 = Table(table2_input["TableInput"])
+
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
+        cleaner.table_trees # call to prime the pump
+
+        result = cleaner.delete_tables([table1, table2])
+        result.should.be.empty
+
+        cleaner.child_tables().should_not.be.empty
+
+        cleaner.refresh_trees()
+        cleaner.child_tables().should.be.empty
+
+
 class TableTest(TestCase):
     def make_table(self, name, location, database):
         return Table({

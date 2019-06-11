@@ -136,10 +136,13 @@ class DatabaseCleaner(object):
             region_name=aws_region)
         self.glue = self.session.client("glue")
 
+    def refresh_trees(self):
+        self._table_trees = self._get_table_trees()
+
     @property
     def table_trees(self):
         if not hasattr(self, "_table_trees"):
-            self._table_trees = self._get_table_trees()
+            self.refresh_trees()
         return self._table_trees
 
     def _get_table_trees(self):
