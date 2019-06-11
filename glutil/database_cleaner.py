@@ -1,16 +1,37 @@
 import boto3
+from functools import total_ordering
 from .utils import paginated_response, GlutilError
 
 
+@total_ordering
 class Table(object):
     def __init__(self, raw):
         self.raw = raw
         self.name = raw["Name"]
         self.location = raw["StorageDescriptor"]["Location"]
+        if self.location[-1] != "/":
+            self.location += "/"
+
         self.database = raw["DatabaseName"]
 
     def __repr__(self):  # pragma: no cover
         return f"<Table {self.database} / {self.name} : {self.location}>"
+
+    def __eq__(self, other):
+        return self.database == other.database and \
+            self.location == other.location and \
+            self.name == other.name
+
+    def __lt__(self, other):
+        if self.database != other.database:
+            return self.database > other.database
+        elif self.location != other.location:
+            return self.location > other.location
+        return self.name > other.name
+
+    def __hash__(self):
+        hash_string = repr(self)
+        return hash(hash_string)
 
 
 class TableTree(object):

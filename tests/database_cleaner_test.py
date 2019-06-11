@@ -124,3 +124,32 @@ class DatabaseCleanerTest(TestCase):
 
         result = cleaner.delete_tables([table1, table2])
         result.should.be.empty
+
+class TableTest(TestCase):
+    def make_table(self, name, location, database):
+        return Table({
+            "Name": name,
+            "DatabaseName": database,
+            "StorageDescriptor": {"Location": location},
+        })
+
+    def test_table_comparisons(self):
+        t1 = self.make_table("foo", "s3://bucket/foo/", "db1")
+        t2 = self.make_table("bar", "s3://bucket/bar/", "db1")
+        (t1 > t2).should.be.false
+        (t1 < t2).should.be.true
+
+        t3 = self.make_table("groo", "s3://bucket/foo/", "db1")
+        (t1 > t3).should.be.true
+
+        t4 = self.make_table("foo", "s3://bucket/z-foo/", "db1")
+        (t1 > t4).should.be.true
+
+        t5 = self.make_table("foo", "s3://bucket/foo/", "db1")
+        t5.should.equal(t1)
+
+        t6 = self.make_table("foo", "s3://bucket/foo/", "db2")
+        (t1 > t6).should.be.true
+
+        t7 = self.make_table("foo", "s3://bucket/foo", "db1")
+        t7.should.equal(t1)
