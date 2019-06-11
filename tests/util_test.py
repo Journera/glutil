@@ -33,11 +33,11 @@ class UtilTest(TestCase):
 
             errors = [{"Object": "some-value",
                        "ErrorDetail": {"ErrorCode": "SomeError"}}]
-            print_batch_errors(errors, "object", "Object")
+            print_batch_errors(errors, obj_type="object", obj_key="Object", action="foo")
 
             output = new_out.getvalue().strip()
             output.should.equal(
-                "One or more errors occurred when attempting to delete object\nError deleting some-value: SomeError")
+                "One or more errors occurred when attempting to foo object\nError on some-value: SomeError")
         finally:
             sys.stdout = old_out
 

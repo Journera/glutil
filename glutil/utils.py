@@ -32,9 +32,10 @@ def paginated_response(function, args, container_name):
     return items
 
 
-def print_batch_errors(errors, obj_type, obj_key):
-    print("One or more errors occurred when attempting to delete", obj_type)
+def print_batch_errors(errors, obj_type="partitions", obj_key="PartitionValues", action="delete"):
+    if errors:
+        print("One or more errors occurred when attempting to", action, obj_type)
 
-    for error in errors:
-        print("Error deleting {}: {}".format(
-            error[obj_key], error["ErrorDetail"]["ErrorCode"]))
+        for error in errors:
+            print("Error on {}: {}".format(
+                error[obj_key], error["ErrorDetail"]["ErrorCode"]))
