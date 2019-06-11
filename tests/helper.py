@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from faker import Faker
+from glutil import Partition
 from io import StringIO
 import boto3
 import random
@@ -29,9 +30,10 @@ class GlueHelper(object):
             self,
             database=None,
             name=None,
+            random_name=False,
             location=None):
         if not name:
-            if self.default_table:
+            if self.default_table and not random_name:
                 name = self.default_table
             else:
                 to = random.randrange(5, 15)
@@ -94,7 +96,7 @@ class GlueHelper(object):
         table_input = self.create_table_input(database=database_name, name=table_name, location=location)
         client.create_table(**table_input)
 
-    def create_partition_data(self, values=None, prefix=None, bucket=None):
+    def create_partition_data(self, values=None, prefix=None, bucket=None, save=True):
         if not values:
             values = self.create_partition_values()
 
@@ -111,11 +113,13 @@ class GlueHelper(object):
 
         s3_key = f"{prefix}{values[0]}/{values[1]}/{values[2]}/{values[3]}/"
         location = f"s3://{bucket}/{s3_key}"
-        s3 = boto3.client("s3", region_name="us-east-1")
-        s3.put_object(
-            Body="idk it doesn't matter",
-            Bucket=bucket,
-            Key=s3_key + "object.json")
+
+        if save:
+            s3 = boto3.client("s3", region_name="us-east-1")
+            s3.put_object(
+                Body="idk it doesn't matter",
+                Bucket=bucket,
+                Key=s3_key + "object.json")
 
         return Partition(*values, location)
 
