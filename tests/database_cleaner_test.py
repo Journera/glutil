@@ -126,6 +126,21 @@ class DatabaseCleanerTest(TestCase):
         result.should.be.empty
 
     @mock_glue
+    def test_delete_table_that_doesnt_exist(self):
+        client = boto3.client("glue", region_name=self.region)
+        database_input = self.helper.create_database_input()
+        client.create_database(**database_input)
+
+        table_input = self.helper.create_table_input(
+            name="table", location="s3://test-bucket/table/")
+        table_input["TableInput"]["DatabaseName"] = table_input["DatabaseName"]
+        table = Table(table_input["TableInput"])
+
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
+        result = cleaner.delete_tables([table])
+        result.should.have.length_of(1)
+
+    @mock_glue
     def tests_refresh_tree(self):
         client = boto3.client("glue", region_name=self.region)
         database_input = self.helper.create_database_input()
