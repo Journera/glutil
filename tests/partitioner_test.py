@@ -178,7 +178,7 @@ class PartitionerTest(TestCase):
         partitioner.create_partitions([partition])
 
         mock = MagicMock(return_value=[])
-        partitioner.glue.batch_delete_partitions = mock
+        partitioner.glue.batch_delete_partition = mock
 
         to_delete = partitioner.existing_partitions()
         partitioner.delete_partitions(to_delete)
@@ -201,7 +201,7 @@ class PartitionerTest(TestCase):
         partitioner.create_partitions(partitions)
 
         mock = MagicMock(return_value=[])
-        partitioner.glue.batch_delete_partitions = mock
+        partitioner.glue.batch_delete_partition = mock
 
         existing_partitions = partitioner.existing_partitions()
         partitioner.delete_partitions(existing_partitions)

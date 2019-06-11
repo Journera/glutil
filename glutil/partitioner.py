@@ -265,6 +265,7 @@ class Partitioner(object):
             if partition.values not in found_values:
                 missing.append(partition)
 
+        missing.sort()
         return missing
 
     def delete_partitions(self, partitions_to_delete):
@@ -288,15 +289,14 @@ class Partitioner(object):
 
         errors = []
 
-        # The batch_delete_partitions API method only supports deleting 25
+        # The batch_delete_partition API method only supports deleting 25
         # partitions per call.
         groups = grouper(partitions_to_delete, 25)
-
         for group in groups:
             request_input = [
                 {"Values": [p.year, p.month, p.day, p.hour]} for p in group]
 
-            response = self.glue.batch_delete_partitions(
+            response = self.glue.batch_delete_partition(
                 DatabaseName=self.database,
                 TableName=self.table,
                 PartitionsToDelete=request_input)
@@ -333,7 +333,6 @@ class Partitioner(object):
         return moved
 
     def update_partition_locations(self, moved):
-        print(moved)
         """Update matched partition locations.
 
         This function will use the existing partition definition in the glue
