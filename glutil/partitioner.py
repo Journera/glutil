@@ -243,12 +243,14 @@ class Partitioner(object):
         Returns:
             list of Partition
         """
-        missing = self.missing_partitions()
+        missing = set(self.missing_partitions())
 
         existing = set(self.existing_partitions())
         found = set(self.partitions_on_disk())
 
-        return list(existing - found) + missing
+        to_delete = list((existing - found) | missing)
+        to_delete.sort()
+        return to_delete
 
     def missing_partitions(self):
         """Return a list of partitions that exist in the Glue database, but not
