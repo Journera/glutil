@@ -15,7 +15,7 @@ def create_found_partitions(partitioner, dry_run=False):
 
     # break early
     if len(to_create) == 0:
-        sys.exit(0)
+        return
 
     if len(to_create) <= 50:
         print("\t{}".format(", ".join(map(str, to_create))))
