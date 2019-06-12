@@ -208,7 +208,6 @@ class CliTest(TestCase):
         mock.assert_called()
         out.should.equal(expected_output)
 
-
     @mock_glue
     @mock_s3
     def test_delete_missing_partitions(self):

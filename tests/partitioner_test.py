@@ -54,7 +54,7 @@ class PartitionerTest(TestCase):
 
         # partitions = self.helper.create_many_partitions(count=10)
         partitions = []
-        for i in range(1,11):
+        for i in range(1, 11):
             partition = Partition("2019", "01", "02", "03", f"s3://{self.bucket}/{self.table}/year=2019/month=01/day=02/hour=03/")
             self.helper.write_partition_to_s3(partition)
             partitions.append(partition)

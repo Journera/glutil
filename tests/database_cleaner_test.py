@@ -159,7 +159,7 @@ class DatabaseCleanerTest(TestCase):
         table2 = Table(table2_input["TableInput"])
 
         cleaner = DatabaseCleaner("test_database", aws_region=self.region)
-        cleaner.table_trees # call to prime the pump
+        cleaner.table_trees  # call to prime the pump
 
         result = cleaner.delete_tables([table1, table2])
         result.should.be.empty

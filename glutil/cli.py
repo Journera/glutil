@@ -12,18 +12,21 @@ def add_database_arg(parser):
         default="",
         help="The Athena/Glue database containing the table you want to search for partitions")
 
+
 def add_table_arg(parser):
     parser.add_argument(
         "table",
         type=str,
         help="The Athena/Glue table you want to search for partitions")
 
+
 def add_flag_args(parser):
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Perform a \"dry-run\", show the actions to be taken without actually performing them.")
-        parser.add_argument("--profile", "-p", type=str, help="AWS profile to use")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform a \"dry-run\", show the actions to be taken without actually performing them.")
+    parser.add_argument("--profile", "-p", type=str, help="AWS profile to use")
+
 
 class Cli(object):
     def main(self, passed_args=None):
@@ -171,7 +174,7 @@ class Cli(object):
     def get_partitioner(self, args):
         try:
             return Partitioner(args.database, args.table, aws_profile=args.profile)
-        except GlutilError as e: # pragma: no cover
+        except GlutilError as e:  # pragma: no cover
             message = e.message
             if e.error_type == "AccessDenied":
                 if args.profile:
@@ -187,7 +190,8 @@ class Cli(object):
     def get_database_cleaner(self, args):
         try:
             return DatabaseCleaner(args.database, aws_profile=args.profile)
-        except GlutilError as e: # pragma: no cover
+        except GlutilError as e:  # pragma: no cover
+            message = e.message
             if e.error_type == "AccessDenied":
                 if args.profile:
                     message += f"\n\tConfirm that {args.profile} has the glue:GetTable permission."
@@ -198,4 +202,3 @@ class Cli(object):
 
             print(message)
             sys.exit(1)
-
