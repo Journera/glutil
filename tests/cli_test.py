@@ -37,7 +37,7 @@ class CliTest(TestCase):
 
     @mock_glue
     @mock_s3
-    def test_delete_all_partitions(self):
+    def test_delete_all_partitions_no_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
         cli = Cli()
@@ -46,7 +46,13 @@ class CliTest(TestCase):
         out, err = self.get_cmd_output(cli, ["delete-all-partitions", self.database, self.table])
         out.should.equal("No partitions found in table test_table")
 
-        # dry run with partitions
+    @mock_glue
+    @mock_s3
+    def test_delete_all_partitions_dry_run(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
         partitions = self.helper.create_many_partitions(count=10)
         partitions.sort()
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
@@ -62,14 +68,37 @@ class CliTest(TestCase):
         found_partitions = partitioner.existing_partitions()
         found_partitions.should.have.length_of(len(partitions))
 
-        # case with partitions
+    @mock_glue
+    @mock_s3
+    def test_delete_all_partitions(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
+        expected_out = "Deleting the following partitions:"
+        for partition in partitions:
+            expected_out += f"\n\t{str(partition)}"
+
         out, err = self.get_cmd_output(cli, ["delete-all-partitions", self.database, self.table])
         out.should.equal(expected_out)
 
         found_partitions = partitioner.existing_partitions()
         found_partitions.should.have.length_of(0)
 
-        # test error output
+    @mock_glue
+    @mock_s3
+    def test_delete_all_partitions_error(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+
         partition = self.helper.create_partition_data()
         partitioner.create_partitions([partition])
         mock = MagicMock()
@@ -90,16 +119,21 @@ class CliTest(TestCase):
 
     @mock_glue
     @mock_s3
-    def test_delete_bad_partitions(self):
+    def test_delete_bad_partitions_no_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
         cli = Cli()
 
-        # case with no partitions
         out, err = self.get_cmd_output(cli, ["delete-bad-partitions", self.database, self.table])
         out.should.equal("Found 0 partitions to delete")
 
-        # dry run with partitions
+    @mock_glue
+    @mock_s3
+    def test_delete_bad_partitions_dry_run(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
         partitions = self.helper.create_many_partitions(count=10, prefix="not-this-table")
         partitions.sort()
 
@@ -116,14 +150,37 @@ class CliTest(TestCase):
         found_partitions = partitioner.existing_partitions()
         found_partitions.should.have.length_of(10)
 
-        # case with partitions
+    @mock_glue
+    @mock_s3
+    def test_delete_bad_partitions(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(count=10, prefix="not-this-table")
+        partitions.sort()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
+        expected_out = "Found 10 partitions to delete\nDeleting the following partitions:"
+        for partition in partitions:
+            expected_out += f"\n\t{str(partition)}"
+
         out, err = self.get_cmd_output(cli, ["delete-bad-partitions", self.database, self.table])
         out.should.equal(expected_out)
 
         found_partitions = partitioner.existing_partitions()
         found_partitions.should.have.length_of(0)
 
-        # test error output
+    @mock_glue
+    @mock_s3
+    def test_delete_bad_partitions_error_output(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         partition = self.helper.create_partition_data(prefix="not-this-table")
         partitioner.create_partitions([partition])
         mock = MagicMock()
@@ -143,21 +200,28 @@ class CliTest(TestCase):
         out.should.equal(expected_output)
 
     @mock_glue
-    def test_delete_bad_tables(self):
+    def test_delete_bad_tables_nothing_to_delete(self):
         database_input = self.helper.create_database_input()
         self.glue.create_database(**database_input)
         cli = Cli()
 
-        # create root table
         location = "s3://bucket/root-table/"
         root_table_input = self.helper.create_table_input(location=location)
         self.glue.create_table(**root_table_input)
 
-        # base condition - only root table
         out, err = self.get_cmd_output(cli, ["delete-bad-tables", self.database])
         out.should.equal("Nothing to delete")
 
-        # case with multiple child tables - dry run
+    @mock_glue
+    def test_delete_bad_tables_dry_run(self):
+        database_input = self.helper.create_database_input()
+        self.glue.create_database(**database_input)
+        cli = Cli()
+
+        location = "s3://bucket/root-table/"
+        root_table_input = self.helper.create_table_input(location=location)
+        self.glue.create_table(**root_table_input)
+
         tables = []
         for i in range(1, 12):
             tbl_location = f"{location}{i}/"
@@ -178,15 +242,46 @@ class CliTest(TestCase):
         found_tables.sort(key=lambda x: x.name)
         found_tables.should.equal(tables)
 
-        # for reals now
+    @mock_glue
+    def test_delete_bad_tables(self):
+        database_input = self.helper.create_database_input()
+        self.glue.create_database(**database_input)
+        cli = Cli()
+
+        location = "s3://bucket/root-table/"
+        root_table_input = self.helper.create_table_input(location=location)
+        self.glue.create_table(**root_table_input)
+
+        tables = []
+        for i in range(1, 12):
+            tbl_location = f"{location}{i}/"
+            tbl_input = self.helper.create_table_input(location=tbl_location, random_name=True)
+            self.glue.create_table(**tbl_input)
+            tbl_input['TableInput']["DatabaseName"] = self.database
+            tables.append(Table(tbl_input['TableInput']))
+
+        expected_output = "Going to delete the following tables:"
+        tables.sort(key=lambda x: x.name)
+        for table in tables:
+            expected_output += f"\n\t{table}"
+
         out, err = self.get_cmd_output(cli, ["delete-bad-tables", self.database])
         out.should.equal(expected_output)
 
-        cleaner.refresh_trees()
+        cleaner = DatabaseCleaner(self.database, aws_region=self.region)
         found_tables = cleaner.child_tables()
         found_tables.should.have.length_of(0)
 
-        # test error output
+    @mock_glue
+    def test_delete_bad_tables_error_output(self):
+        database_input = self.helper.create_database_input()
+        self.glue.create_database(**database_input)
+        cli = Cli()
+
+        location = "s3://bucket/root-table/"
+        root_table_input = self.helper.create_table_input(location=location)
+        self.glue.create_table(**root_table_input)
+
         table_input = self.helper.create_table_input(location=location, name=f"test_table-bazer")
         self.glue.create_table(**table_input)
 
@@ -198,7 +293,7 @@ class CliTest(TestCase):
                 "ErrorMessage": "Table not found",
             },
         }]
-        cleaner.refresh_trees()
+        cleaner = DatabaseCleaner(self.database, aws_region=self.region)
         cleaner.delete_tables = mock
         cleaner_mock = MagicMock(return_value=cleaner)
         cli.get_database_cleaner = cleaner_mock
@@ -210,7 +305,7 @@ class CliTest(TestCase):
 
     @mock_glue
     @mock_s3
-    def test_delete_missing_partitions(self):
+    def test_delete_missing_partitions_no_partitions(self):
         self.helper.make_database_and_table()
         cli = Cli()
 
@@ -221,11 +316,25 @@ class CliTest(TestCase):
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         partitioner.create_partitions(partitions)
 
-        # no partitions to delete
         out, err = self.get_cmd_output(cli, ["delete-missing-partitions", self.database, self.table])
         out.should.equal("Found 0 partitions to delete:")
 
-        # with partitions to delete, dry run
+        catalog_partitions = partitioner.existing_partitions()
+        catalog_partitions.should.have.length_of(10)
+
+    @mock_glue
+    @mock_s3
+    def test_delete_missing_partitions_dry_run(self):
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        self.s3.create_bucket(Bucket=self.bucket)
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
         s3resource = boto3.resource("s3")
         bucket = s3resource.Bucket(self.bucket)
         for obj in bucket.objects.all():
@@ -242,14 +351,42 @@ class CliTest(TestCase):
         found_partitions.should.have.length_of(10)
         set(found_partitions).should.equal(set(partitions))
 
-        # no dry run
+    @mock_glue
+    @mock_s3
+    def test_delete_missing_partitions(self):
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        self.s3.create_bucket(Bucket=self.bucket)
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
+        s3resource = boto3.resource("s3")
+        bucket = s3resource.Bucket(self.bucket)
+        for obj in bucket.objects.all():
+            obj.delete()
+
+        expected_out = "Found 10 partitions to delete:"
+        for partition in partitions:
+            expected_out += f"\n\t{partition}"
+
         out, err = self.get_cmd_output(cli, ["delete-missing-partitions", self.database, self.table])
         out.should.equal(expected_out)
 
         found_partitions = partitioner.existing_partitions()
         found_partitions.should.have.length_of(0)
 
-        # test error output
+    @mock_glue
+    @mock_s3
+    def test_delete_missing_partitions_error_output(self):
+        self.helper.make_database_and_table()
+        cli = Cli()
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        self.s3.create_bucket(Bucket=self.bucket)
+
         partition = self.helper.create_partition_data(save=False)
         partitioner.create_partitions([partition])
         mock = MagicMock()
@@ -270,7 +407,7 @@ class CliTest(TestCase):
 
     @mock_s3
     @mock_glue
-    def test_update_partitions(self):
+    def test_update_partitions_no_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
         cli = Cli()
@@ -284,9 +421,20 @@ class CliTest(TestCase):
         out, err = self.get_cmd_output(cli, ["update-partitions", self.database, self.table])
         out.should.equal("No partitions to update")
 
-        # some partitions moved
-        expected_output = "Found 5 moved partitions"
 
+    @mock_s3
+    @mock_glue
+    def test_update_partitions_dry_run(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(10)
+        partitions.sort()
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
+        expected_output = "Found 5 moved partitions"
         partitions_to_move = partitions[0:5]
         for p in partitions_to_move:
             new_location = f"s3://old-bucket/old-table/{p.year}/{p.month}/{p.day}/{p.hour}/"
@@ -295,7 +443,6 @@ class CliTest(TestCase):
 
         partitioner.update_partition_locations(partitions_to_move)
 
-        # test dry run
         out, err = self.get_cmd_output(cli, ["update-partitions", self.database, self.table, "--dry-run"])
         out.should.equal(expected_output)
 
@@ -305,7 +452,27 @@ class CliTest(TestCase):
             matching.should_not.be.false
             matching.location.startswith(f"s3://{self.bucket}/{self.table}/").should.be.false
 
-        # test for real
+    @mock_s3
+    @mock_glue
+    def test_update_partitions(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(10)
+        partitions.sort()
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
+        expected_output = "Found 5 moved partitions"
+        partitions_to_move = partitions[0:5]
+        for p in partitions_to_move:
+            new_location = f"s3://old-bucket/old-table/{p.year}/{p.month}/{p.day}/{p.hour}/"
+            p.location = new_location
+            expected_output += f"\n\t{p}"
+
+        partitioner.update_partition_locations(partitions_to_move)
+
         out, err = self.get_cmd_output(cli, ["update-partitions", self.database, self.table])
         out.should.equal(expected_output)
 
@@ -315,7 +482,15 @@ class CliTest(TestCase):
             matching.should_not.be.false
             matching.location.startswith(f"s3://{self.bucket}/{self.table}/").should.be.true
 
-        # test error condition
+    @mock_s3
+    @mock_glue
+    def test_update_partitions_error_output(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+
         partition = self.helper.create_partition_data()
         partition.location = "s3://old-bucket/old-table/"
         partitioner.create_partitions([partition])
