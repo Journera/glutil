@@ -2,10 +2,12 @@ from unittest import TestCase
 from unittest.mock import MagicMock
 from moto import mock_s3, mock_glue
 from .helper import GlueHelper, captured_output
+from collections import namedtuple
 import boto3
 import sure  # noqa: F401
+import sys
 
-from glutil import Cli, Partitioner, DatabaseCleaner
+from glutil import Cli, Partitioner, DatabaseCleaner, GlutilError
 from glutil.database_cleaner import Table
 from glutil.partitioner import PartitionMap
 
@@ -26,6 +28,14 @@ class CliTest(TestCase):
 
         self.s3 = boto3.client("s3")
         self.glue = boto3.client("glue")
+
+        self.exit_mock = MagicMock()
+        self.original_exit = sys.exit
+        sys.exit = self.exit_mock
+
+    def tearDown(self):
+        sys.exit = self.original_exit
+        super().tearDown()
 
     def get_cmd_output(self, cli, cli_args):
         with captured_output() as (out, err):
@@ -199,6 +209,8 @@ class CliTest(TestCase):
         out, err = self.get_cmd_output(cli, ["delete-bad-partitions", self.database, self.table])
         out.should.equal(expected_output)
 
+        self.exit_mock.assert_called_with(1)
+
     @mock_glue
     def test_delete_bad_tables_nothing_to_delete(self):
         database_input = self.helper.create_database_input()
@@ -303,6 +315,8 @@ class CliTest(TestCase):
         mock.assert_called()
         out.should.equal(expected_output)
 
+        self.exit_mock.assert_called_with(1)
+
     @mock_glue
     @mock_s3
     def test_delete_missing_partitions_no_partitions(self):
@@ -405,6 +419,8 @@ class CliTest(TestCase):
         out, err = self.get_cmd_output(cli, ["delete-missing-partitions", self.database, self.table])
         out.should.equal(expected_output)
 
+        self.exit_mock.assert_called_with(1)
+
     @mock_s3
     @mock_glue
     def test_update_partitions_no_partitions(self):
@@ -420,7 +436,6 @@ class CliTest(TestCase):
         # all partitions correctly located
         out, err = self.get_cmd_output(cli, ["update-partitions", self.database, self.table])
         out.should.equal("No partitions to update")
-
 
     @mock_s3
     @mock_glue
@@ -511,3 +526,55 @@ class CliTest(TestCase):
         expected_output = f"Found 1 moved partitions\n\t{partition}\nOne or more errors occurred when attempting to update partitions\nError on {partition.values}: PartitionNotFound"
         out, err = self.get_cmd_output(cli, ["update-partitions", self.database, self.table])
         out.should.equal(expected_output)
+
+        self.exit_mock.assert_called_with(1)
+
+    @mock_s3
+    @mock_glue
+    def test_get_partitioner_and_cleaner_exceptions(self):
+        Args = namedtuple("Args", ["database", "table", "profile"])
+        args = Args("nodb", "notable", "noprofile")
+
+        no_profile_mock = MagicMock()
+        no_profile_mock.side_effect = GlutilError(
+            error_type="ProfileNotFound",
+            message="No such profile noprofile")
+        original_init = Partitioner.__init__
+        Partitioner.__init__ = no_profile_mock
+        cli = Cli()
+
+        with captured_output() as (out, err):
+            cli.get_partitioner(args)
+        output = out.getvalue().strip()
+        output.should.equal("No such profile noprofile\n\tConfirm that noprofile is a locally configured aws profile.")
+        self.exit_mock.assert_called_with(1)
+
+        no_access_mock = MagicMock()
+        no_access_mock.side_effect = GlutilError(
+            error_type="AccessDenied",
+            message="You do not have permissions to run GetTable")
+        Partitioner.__init__ = no_access_mock
+        cli = Cli()
+
+        with captured_output() as (out, err):
+            cli.get_partitioner(args)
+        output = out.getvalue().strip()
+        output.should.equal("You do not have permissions to run GetTable\n\tConfirm that noprofile has the glue:GetTable permission.")
+        self.exit_mock.assert_called_with(1)
+
+        not_found_mock = MagicMock()
+        not_found_mock.side_effect = GlutilError(
+            error_type="EntityNotFound",
+            message="Error, could not find table notable")
+        Partitioner.__init__ = not_found_mock
+        cli = Cli()
+
+        with captured_output() as (out, err):
+            cli.get_partitioner(args)
+        output = out.getvalue().strip()
+        output.should.equal("Error, could not find table notable\n\tConfirm notable exists, and you have the ability to access it.")
+        self.exit_mock.assert_called_with(1)
+
+        # NOTE: this must stay, otherwise tests run after this will still
+        #       have Partitioner.__init__ set to a mock
+        Partitioner.__init__ = original_init

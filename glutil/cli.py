@@ -108,6 +108,7 @@ class Cli(object):
             errors = partitioner.delete_partitions(existing)
             if errors:
                 print_batch_errors(errors)
+                sys.exit(1)
 
     def delete_bad_partitions(self, args):
         partitioner = self.get_partitioner(args)
@@ -124,6 +125,7 @@ class Cli(object):
                 errors = partitioner.delete_partitions(to_delete)
                 if errors:
                     print_batch_errors(errors)
+                    sys.exit(1)
 
     def delete_bad_tables(self, args):
         cleaner = self.get_database_cleaner(args)
@@ -140,6 +142,7 @@ class Cli(object):
                 errors = cleaner.delete_tables(to_delete)
                 if errors:
                     print_batch_errors(errors, obj_type="tables", obj_key="TableName")
+                    sys.exit(1)
 
     def delete_missing_partitions(self, args):
         partitioner = self.get_partitioner(args)
@@ -153,6 +156,7 @@ class Cli(object):
             errors = partitioner.delete_partitions(to_delete)
             if errors:
                 print_batch_errors(errors)
+                sys.exit(1)
 
     def update_partitions(self, args):
         partitioner = self.get_partitioner(args)
@@ -170,12 +174,15 @@ class Cli(object):
             errors = partitioner.update_partition_locations(moved)
             if errors:
                 print_batch_errors(errors, action="update")
+                sys.exit(1)
 
     def get_partitioner(self, args):
         try:
             return Partitioner(args.database, args.table, aws_profile=args.profile)
-        except GlutilError as e:  # pragma: no cover
+        except GlutilError as e:
             message = e.message
+            if e.error_type == "ProfileNotFound":
+                message += f"\n\tConfirm that {args.profile} is a locally configured aws profile."
             if e.error_type == "AccessDenied":
                 if args.profile:
                     message += f"\n\tConfirm that {args.profile} has the glue:GetTable permission."
