@@ -114,7 +114,7 @@ setup(
         'console_scripts': ['glutil=glutil:cli'],
     },
     install_requires=REQUIRED,
-    test_require=TEST_REQUIRED,
+    tests_require=TEST_REQUIRED,
     include_package_data=True,
     license='BSD',
     classifiers=[
