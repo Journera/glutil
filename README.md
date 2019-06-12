@@ -35,6 +35,30 @@ Ideally these will be removed in the future to enable use with more diverse sets
     s3://bucket/table/year=YYYY/month=MM/day=DD/hour=HH/
     ```
 
+## IAM Permissions
+
+To use `glutil` you need the following IAM permissions:
+
+- `glue:GetDatabase`
+- `glue:GetTable`
+- `glue:GetTables`
+- `glue:BatchCreatePartition`
+- `glue:BatchDeleteTable`
+- `glue:BatchDeletePartition`
+- `glue:GetPartitions`
+- `glue:UpdatePartition`
+- `s3:ListBucket` on the buckets containing your data
+- `s3:GetObject` on the buckets containing your data
+
+If you're only using the `create-partition` lambda, you can get by with only:
+
+- `glue:GetDatabase`
+- `glue:GetTable`
+- `glue:BatchCreatePartition`
+- `glue:GetPartitions`
+- `s3:ListBucket`
+- `s3:GetObject`
+
 ## `glutil` command line interface
 
 The `glutil` CLI includes a number of subcommands for managing partitions and fixing a glue catalog when things go wrong.
@@ -47,7 +71,7 @@ All commands support the `--dry-run` flag, which will output the command's expec
 Below are short descriptions of the available commands.
 For larger descriptions and command line arguments, run `glutil <command> --help`.
 
-### `gluetil create-partitions`
+### `glutil create-partitions`
 
 `create-partitions` is the original use case for this code.
 Running it will search S3 for partitioned data, and will create new partitions for data missing from the glue catalog.
@@ -99,3 +123,8 @@ When this happens, it may create a large number of junk tables in the catalog.
 -   A table with the same location as another, with a name that's a superstring of the other's (this is from the glue crawler semantic of creating tables which would otherwise have the same name with the name {table}-somelongid).
 
     For example, if you have the tables `foo` and `foo-buzzer`, both with the same location, `foo-buzzer` will be deleted.
+
+## Running `create-partitions` as a Lambda
+
+Journera's biggest use for this library is as a Glue Crawler replacement for tables and datasets the glue crawlers have problems parsing.
+Information on this lambda can be found in the [lambda](./lambda) directory.
