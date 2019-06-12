@@ -632,42 +632,43 @@ class CliTest(TestCase):
         Partitioner.__init__ = no_profile_mock
         cli = Cli()
 
-        with captured_output() as (out, err):
-            cli.get_partitioner(args)
-        output = out.getvalue().strip()
-        output.should.equal("No such profile noprofile\n\tConfirm that noprofile is a locally configured aws profile.")
-        self.exit_mock.assert_called_with(1)
+        try:
+            with captured_output() as (out, err):
+                cli.get_partitioner(args)
+            output = out.getvalue().strip()
+            output.should.equal("No such profile noprofile\n\tConfirm that noprofile is a locally configured aws profile.")
+            self.exit_mock.assert_called_with(1)
 
-        no_access_mock = MagicMock()
-        no_access_mock.side_effect = GlutilError(
-            error_type="AccessDenied",
-            message="You do not have permissions to run GetTable")
-        Partitioner.__init__ = no_access_mock
+            no_access_mock = MagicMock()
+            no_access_mock.side_effect = GlutilError(
+                error_type="AccessDenied",
+                message="You do not have permissions to run GetTable")
+            Partitioner.__init__ = no_access_mock
 
-        with captured_output() as (out, err):
-            cli.get_partitioner(args)
-        output = out.getvalue().strip()
-        output.should.equal("You do not have permissions to run GetTable\n\tConfirm that noprofile has the glue:GetTable permission.")
-        self.exit_mock.assert_called_with(1)
+            with captured_output() as (out, err):
+                cli.get_partitioner(args)
+            output = out.getvalue().strip()
+            output.should.equal("You do not have permissions to run GetTable\n\tConfirm that noprofile has the glue:GetTable permission.")
+            self.exit_mock.assert_called_with(1)
 
-        with captured_output() as (out, err):
-            cli.get_partitioner(Args("nodb", "notable", None))
-        output = out.getvalue().strip()
-        output.should.equal("You do not have permissions to run GetTable\n\tDid you mean to run this with a profile specified?")
-        self.exit_mock.assert_called_with(1)
+            with captured_output() as (out, err):
+                cli.get_partitioner(Args("nodb", "notable", None))
+            output = out.getvalue().strip()
+            output.should.equal("You do not have permissions to run GetTable\n\tDid you mean to run this with a profile specified?")
+            self.exit_mock.assert_called_with(1)
 
-        not_found_mock = MagicMock()
-        not_found_mock.side_effect = GlutilError(
-            error_type="EntityNotFound",
-            message="Error, could not find table notable")
-        Partitioner.__init__ = not_found_mock
+            not_found_mock = MagicMock()
+            not_found_mock.side_effect = GlutilError(
+                error_type="EntityNotFound",
+                message="Error, could not find table notable")
+            Partitioner.__init__ = not_found_mock
 
-        with captured_output() as (out, err):
-            cli.get_partitioner(args)
-        output = out.getvalue().strip()
-        output.should.equal("Error, could not find table notable\n\tConfirm notable exists, and you have the ability to access it.")
-        self.exit_mock.assert_called_with(1)
-
-        # NOTE: this must stay, otherwise tests run after this will still
-        #       have Partitioner.__init__ set to a mock
-        Partitioner.__init__ = original_init
+            with captured_output() as (out, err):
+                cli.get_partitioner(args)
+            output = out.getvalue().strip()
+            output.should.equal("Error, could not find table notable\n\tConfirm notable exists, and you have the ability to access it.")
+            self.exit_mock.assert_called_with(1)
+        finally:
+            # NOTE: this must stay, otherwise tests run after this will still
+            #       have Partitioner.__init__ set to a mock
+            Partitioner.__init__ = original_init
