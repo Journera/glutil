@@ -31,10 +31,10 @@ def handle(event, context):
     database = event["database"]
     table = event["table"]
 
-    if "profile" in event:
-        profile = event["profile"]
+    if "region" in event:
+        region = event["region"]
     else:
-        profile = None
+        region = None
 
-    partitioner = Partitioner(database, table, profile)
+    partitioner = Partitioner(database, table, aws_profile=None, aws_region=region)
     create_found_partitions(partitioner)
