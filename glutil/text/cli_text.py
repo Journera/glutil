@@ -19,7 +19,7 @@ delete_all_partitions_help = """
 Delete all partitions in a table.
 
 This is useful should your partitions somehow get screwed up. Ideally, after
-running this, the athena_partitioner script should be run.
+running this, you should run 'create-partitions'.
 
 NOTE: This will be substantially slower than deleting and recreating a table,
 and in most cases you should just do that instead of running this script.

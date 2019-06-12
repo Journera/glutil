@@ -11,14 +11,14 @@ def add_database_arg(parser):
         "database",
         type=str,
         default="",
-        help="The Athena/Glue database containing the table you want to search for partitions")
+        help="The Glue database containing the table you want to search for partitions")
 
 
 def add_table_arg(parser):
     parser.add_argument(
         "table",
         type=str,
-        help="The Athena/Glue table you want to search for partitions")
+        help="The Glue table you want to search for partitions")
 
 
 def add_flag_args(parser):
@@ -33,7 +33,7 @@ class Cli(object):
     def main(self, passed_args=None):
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            description="Manage S3-backed Glue/Athena tables")
+            description="Manage S3-backed Glue tables")
 
         subparsers = parser.add_subparsers(dest="cmd")
 

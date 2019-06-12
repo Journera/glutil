@@ -1,10 +1,10 @@
 # Glutil
 
-A collection of utilities for managing AWS Athena/Glue partitions.
+A collection of utilities for managing AWS Glue partitions.
 
 ## Background
 
-Amazon's Athena and Glue are generally pretty great, but sometimes things don't play well together, or a configuration mistake was made.
+Amazon's Glue Catalog is generally pretty great, but sometimes things don't play well together, or a configuration mistake was made.
 For those cases, we have these utilities.
 
 At Journera, our original use case for this project was as a Glue Crawler replacement for tables that don't use Hive-compliant path structures.
