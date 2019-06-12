@@ -110,9 +110,9 @@ setup(
     python_requires=REQUIRES_PYTHON,
     url=URL,
     packages=['glutil'],
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
+    entry_points={
+        'console_scripts': ['glutil=glutil:cli'],
+    },
     install_requires=REQUIRED,
     test_require=TEST_REQUIRED,
     include_package_data=True,
