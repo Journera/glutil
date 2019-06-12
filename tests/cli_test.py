@@ -47,6 +47,96 @@ class CliTest(TestCase):
 
     @mock_glue
     @mock_s3
+    def test_create_partitions(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+
+        expected_output = f"Running Partitioner for {self.database}.{self.table}\n\tLooking for partitions in s3://{self.bucket}/{self.table}/\n\tFound 10 new partitions to create\n\t"
+        expected_output += ", ".join(map(str, partitions))
+
+        out, err = self.get_cmd_output(cli, ["create-partitions", self.database, self.table])
+        out.should.equal(expected_output)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found = partitioner.partitions_on_disk()
+
+        set(found).should.equal(set(partitions))
+
+    @mock_glue
+    @mock_s3
+    def test_create_partitions_dry_run(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+
+        expected_output = f"Running Partitioner for {self.database}.{self.table}\n\tLooking for partitions in s3://{self.bucket}/{self.table}/\n\tFound 10 new partitions to create\n\t"
+        expected_output += ", ".join(map(str, partitions))
+
+        out, err = self.get_cmd_output(cli, ["create-partitions", self.database, self.table, "--dry-run"])
+        out.should.equal(expected_output)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found = partitioner.existing_partitions()
+        found.should.have.length_of(0)
+
+    @mock_glue
+    @mock_s3
+    def test_create_partitions_nothing_new(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(partitions)
+
+        expected_output = f"Running Partitioner for {self.database}.{self.table}\n\tLooking for partitions in s3://{self.bucket}/{self.table}/\n\tFound 0 new partitions to create"
+
+        out, err = self.get_cmd_output(cli, ["create-partitions", self.database, self.table])
+        out.should.equal(expected_output)
+
+    @mock_glue
+    @mock_s3
+    def test_create_partitions_error_output(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        partitions = self.helper.create_many_partitions(count=10)
+        partitions.sort()
+
+        expected_output = f"Running Partitioner for {self.database}.{self.table}\n\tLooking for partitions in s3://{self.bucket}/{self.table}/\n\tFound 10 new partitions to create\n\t"
+        expected_output += ", ".join(map(str, partitions))
+        expected_output += f"\nOne or more errors occurred when attempting to create partitions\nError on {partitions[0].values}: AlreadyExistsException"
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions([partitions[0]])
+        mock = MagicMock(return_value=[])
+        partitioner.existing_partitions = mock
+
+        partitioner_mock = MagicMock(return_value=partitioner)
+        cli.get_partitioner = partitioner_mock
+
+        out, err = self.get_cmd_output(cli, ["create-partitions", self.database, self.table])
+        out.should.equal(expected_output)
+        self.exit_mock.assert_called_with(1)
+
+        fresh_partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        exists = fresh_partitioner.existing_partitions()
+
+        set(exists).should.equal(set(partitions))
+
+
+    @mock_glue
+    @mock_s3
     def test_delete_all_partitions_no_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
@@ -554,7 +644,6 @@ class CliTest(TestCase):
             error_type="AccessDenied",
             message="You do not have permissions to run GetTable")
         Partitioner.__init__ = no_access_mock
-        cli = Cli()
 
         with captured_output() as (out, err):
             cli.get_partitioner(args)
@@ -562,12 +651,17 @@ class CliTest(TestCase):
         output.should.equal("You do not have permissions to run GetTable\n\tConfirm that noprofile has the glue:GetTable permission.")
         self.exit_mock.assert_called_with(1)
 
+        with captured_output() as (out, err):
+            cli.get_partitioner(Args("nodb", "notable", None))
+        output = out.getvalue().strip()
+        output.should.equal("You do not have permissions to run GetTable\n\tDid you mean to run this with a profile specified?")
+        self.exit_mock.assert_called_with(1)
+
         not_found_mock = MagicMock()
         not_found_mock.side_effect = GlutilError(
             error_type="EntityNotFound",
             message="Error, could not find table notable")
         Partitioner.__init__ = not_found_mock
-        cli = Cli()
 
         with captured_output() as (out, err):
             cli.get_partitioner(args)

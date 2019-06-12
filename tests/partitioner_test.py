@@ -5,7 +5,7 @@ from .helper import GlueHelper
 import boto3
 import sure  # noqa: F401
 
-from glutil import Partitioner, Partition
+from glutil import Partitioner, Partition, GlutilError
 
 
 class PartitionerTest(TestCase):
@@ -32,6 +32,14 @@ class PartitionerTest(TestCase):
 
         partitioner.bucket.should.equal(self.bucket)
         partitioner.prefix.should.equal("test_table/")
+
+    @mock_glue
+    def test_init_no_table(self):
+        with self.assertRaises(GlutilError) as context:
+            Partitioner(self.database, self.table, aws_region=self.region)
+
+        exception = context.exception
+        exception.error_type.should.equal("EntityNotFound")
 
     @mock_glue
     @mock_s3
@@ -66,7 +74,7 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     @mock_s3
-    def test_create_partition(self):
+    def test_create_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 
@@ -141,6 +149,29 @@ class PartitionerTest(TestCase):
 
         create_partitions_mock.call_count.should.equal(2)
         create_partitions_mock.assert_has_calls(calls)
+
+    @mock_s3
+    @mock_glue
+    def test_create_partition_already_exists_in_multiple_batches(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        partitions = sorted(self.helper.create_many_partitions(count=150))
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+
+        # prime partitions list with two partitions, one in each group
+        already_exists = [partitions[5], partitions[115]]
+        errors = partitioner.create_partitions(already_exists)
+        errors.should.be.empty
+
+        # now attempt to create them as part of a large batch
+        errors = partitioner.create_partitions(partitions)
+        errors.should.have.length_of(2)
+
+        for idx, error in enumerate(errors):
+            partition = already_exists[idx]
+            error["PartitionValues"].should.equal(partition.values)
+            error["ErrorDetail"]["ErrorCode"].should.equal("AlreadyExistsException")
 
     @mock_s3
     @mock_glue

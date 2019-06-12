@@ -87,8 +87,7 @@ class PartitionMap(object):
         return self.map.get(partition.year, {}) \
             .get(partition.month, {}) \
             .get(partition.day, {}) \
-            .get(partition.hour, None) \
-
+            .get(partition.hour, None)
 
 
 class Partitioner(object):
@@ -204,6 +203,7 @@ class Partitioner(object):
     def create_partitions(self, partitions):
         groups = grouper(partitions, 100)
 
+        errors = []
         for group in groups:
             partition_input = list(map(self._partition_input, group))
 
@@ -212,10 +212,9 @@ class Partitioner(object):
                 TableName=self.table,
                 PartitionInputList=partition_input,
             )
-
-        if "Errors" in response:
-            return response["Errors"]
-        return []
+            if "Errors" in response:
+                errors.extend(response["Errors"])
+        return errors
 
     def _partition_input(self, partition):
         storage_desc = self.storage_descriptor.copy()

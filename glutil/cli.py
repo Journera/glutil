@@ -3,6 +3,7 @@ import glutil.text.cli_text as cli_text
 import sys
 from glutil import Partitioner, GlutilError, DatabaseCleaner
 from glutil.utils import print_batch_errors
+from .serverless_function import create_found_partitions
 
 
 def add_database_arg(parser):
@@ -36,6 +37,15 @@ class Cli(object):
 
         subparsers = parser.add_subparsers(dest="cmd")
 
+        create_partitions_parser = subparsers.add_parser(
+            "create-partitions",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description=cli_text.create_partitions_help,
+            help="Create partitions in the glue catalog based on what's in S3")
+        add_database_arg(create_partitions_parser)
+        add_table_arg(create_partitions_parser)
+        add_flag_args(create_partitions_parser)
+
         delete_all_partitions_parser = subparsers.add_parser(
             "delete-all-partitions",
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -53,14 +63,6 @@ class Cli(object):
         add_database_arg(delete_bad_partitions_parser)
         add_table_arg(delete_bad_partitions_parser)
         add_flag_args(delete_bad_partitions_parser)
-
-        delete_bad_tables_parser = subparsers.add_parser(
-            "delete-bad-tables",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            help="Remove tables erroneously created by a Glue Crawler",
-            description=cli_text.delete_bad_tables_help)
-        add_database_arg(delete_bad_tables_parser)
-        add_flag_args(delete_bad_tables_parser)
 
         delete_missing_partitions_parser = subparsers.add_parser(
             "delete-missing-partitions",
@@ -80,6 +82,14 @@ class Cli(object):
         add_table_arg(update_partitions_parser)
         add_flag_args(update_partitions_parser)
 
+        delete_bad_tables_parser = subparsers.add_parser(
+            "delete-bad-tables",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            help="Remove tables erroneously created by a Glue Crawler",
+            description=cli_text.delete_bad_tables_help)
+        add_database_arg(delete_bad_tables_parser)
+        add_flag_args(delete_bad_tables_parser)
+
         if passed_args:
             args = parser.parse_args(passed_args)
         else:
@@ -91,6 +101,10 @@ class Cli(object):
 
         func = args.cmd.replace("-", "_")
         getattr(self, func)(args)
+
+    def create_partitions(self, args):
+        partitioner = self.get_partitioner(args)
+        create_found_partitions(partitioner, dry_run=args.dry_run)
 
     def delete_all_partitions(self, args):
         partitioner = self.get_partitioner(args)

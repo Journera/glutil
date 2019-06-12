@@ -1,3 +1,20 @@
+create_partitions_help = """
+Create partitions based on S3 data.
+
+This will crawl S3 for anything that looks like a partition underneath the
+table's location, and create new partitions in the catalog for those found
+locations.
+
+For example, if your table has the location of
+    s3://some-bucket/some-table/
+
+And you have data stored at
+    s3://some-bucket/some-table/2019/01/02/03/, or
+    s3://some-bucket/some-table/year=2019/month=01/day=02/year=03/
+
+This script will create a partition with the values [2019 01 02 03].
+"""
+
 delete_all_partitions_help = """
 Delete all partitions in a table.
 
