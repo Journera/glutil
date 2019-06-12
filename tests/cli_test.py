@@ -134,7 +134,6 @@ class CliTest(TestCase):
 
         set(exists).should.equal(set(partitions))
 
-
     @mock_glue
     @mock_s3
     def test_delete_all_partitions_no_partitions(self):
