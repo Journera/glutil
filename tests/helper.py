@@ -114,14 +114,23 @@ class GlueHelper(object):
         s3_key = f"{prefix}{values[0]}/{values[1]}/{values[2]}/{values[3]}/"
         location = f"s3://{bucket}/{s3_key}"
 
+        partition = Partition(*values, location)
         if save:
-            s3 = boto3.client("s3", region_name="us-east-1")
-            s3.put_object(
-                Body="idk it doesn't matter",
-                Bucket=bucket,
-                Key=s3_key + "object.json")
+            self.write_partition_to_s3(partition)
 
         return Partition(*values, location)
+
+    def write_partition_to_s3(self, partition):
+        location_splits = partition.location[len("s3://"):].split("/")
+        bucket = location_splits[0]
+        path = "/".join(location_splits[1:])
+        s3_path = path + "/object.json"
+
+        s3 = boto3.client("s3", region_name="us-east-1")
+        s3.put_object(
+            Body='{"foo": "bar"}',
+            Bucket=bucket,
+            Key=s3_path)
 
     def create_partition_values(self):
         date = self.faker.date_between(start_date="-1y", end_date="today")

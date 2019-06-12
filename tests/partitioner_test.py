@@ -44,12 +44,25 @@ class PartitionerTest(TestCase):
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         found_partitions = partitioner.partitions_on_disk()
 
-        found_partitions_by_values = {
-            tuple(p.values) for p in found_partitions}
-        created_partitions_by_values = {tuple(p.values) for p in partitions}
+        set(found_partitions).should.equal(set(partitions))
 
-        set(found_partitions_by_values).should.equal(
-            set(created_partitions_by_values))
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_in_s3_with_hive_formatted_partitions(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        # partitions = self.helper.create_many_partitions(count=10)
+        partitions = []
+        for i in range(1,11):
+            partition = Partition("2019", "01", "02", "03", f"s3://{self.bucket}/{self.table}/year=2019/month=01/day=02/hour=03/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk()
+
+        set(found_partitions).should.equal(set(partitions))
 
     @mock_glue
     @mock_s3
