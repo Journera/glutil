@@ -81,6 +81,11 @@ class Cli(object):
             args = parser.parse_args(passed_args)
         else:
             args = parser.parse_args()  # pragma: no cover
+
+        if not args.cmd:
+            parser.print_help()
+            sys.exit(1)
+
         func = args.cmd.replace("-", "_")
         getattr(self, func)(args)
 
