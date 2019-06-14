@@ -5,7 +5,7 @@ from .helper import GlueHelper
 import boto3
 import sure  # noqa: F401
 
-from glutil import Partitioner, Partition
+from glutil import Partitioner, Partition, GlutilError
 
 
 class PartitionerTest(TestCase):
@@ -34,6 +34,14 @@ class PartitionerTest(TestCase):
         partitioner.prefix.should.equal("test_table/")
 
     @mock_glue
+    def test_init_no_table(self):
+        with self.assertRaises(GlutilError) as context:
+            Partitioner(self.database, self.table, aws_region=self.region)
+
+        exception = context.exception
+        exception.error_type.should.equal("EntityNotFound")
+
+    @mock_glue
     @mock_s3
     def test_find_partitions_in_s3(self):
         self.s3.create_bucket(Bucket=self.bucket)
@@ -44,16 +52,29 @@ class PartitionerTest(TestCase):
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         found_partitions = partitioner.partitions_on_disk()
 
-        found_partitions_by_values = {
-            tuple(p.values) for p in found_partitions}
-        created_partitions_by_values = {tuple(p.values) for p in partitions}
-
-        set(found_partitions_by_values).should.equal(
-            set(created_partitions_by_values))
+        set(found_partitions).should.equal(set(partitions))
 
     @mock_glue
     @mock_s3
-    def test_create_new_partition(self):
+    def test_find_partitions_in_s3_with_hive_formatted_partitions(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        # partitions = self.helper.create_many_partitions(count=10)
+        partitions = []
+        for i in range(1, 11):
+            partition = Partition("2019", "01", "02", "03", f"s3://{self.bucket}/{self.table}/year=2019/month=01/day=02/hour=03/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk()
+
+        set(found_partitions).should.equal(set(partitions))
+
+    @mock_glue
+    @mock_s3
+    def test_create_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 
@@ -64,7 +85,7 @@ class PartitionerTest(TestCase):
         create_partitions_mock = MagicMock(return_value=[])
         partitioner.glue.batch_create_partition = create_partitions_mock
 
-        partitioner.create_new_partitions()
+        partitioner.create_partitions([partition])
 
         create_partitions_mock.assert_called_with(
             DatabaseName=self.database,
@@ -73,34 +94,7 @@ class PartitionerTest(TestCase):
 
     @mock_s3
     @mock_glue
-    def test_create_new_partition_when_partition_exists(self):
-        self.s3.create_bucket(Bucket=self.bucket)
-        self.helper.make_database_and_table()
-
-        partition = self.helper.create_partition_data()
-        self.glue.create_partition(
-            DatabaseName=self.database,
-            TableName=self.table,
-            PartitionInput={
-                "Values": partition.values,
-                "StorageDescriptor": {"Location": partition.location}})
-
-        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
-
-        create_partitions_mock = MagicMock(return_value=[])
-        partitioner.glue.batch_create_partition = create_partitions_mock
-
-        partitioner.create_new_partitions()
-
-        create_partitions_mock.assert_not_called()
-
-    @mock_s3
-    @mock_glue
-    def test_create_new_partition_when_creation_race(self):
-        """Test the case when someone creates a partition that
-        should be created by the partitioner between the partitioner
-        getting a list of existing partitions and attempting to
-        create the partition"""
+    def test_create_partition_when_partition_exists(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 
@@ -118,8 +112,7 @@ class PartitionerTest(TestCase):
         })
         partitioner.glue.batch_create_partition = create_partitions_mock
 
-        errors = partitioner.create_new_partitions()
-        print(errors)
+        errors = partitioner.create_partitions([partition])
 
         create_partitions_mock.assert_called_once()
         errors.should.have.length_of(1)
@@ -129,7 +122,7 @@ class PartitionerTest(TestCase):
 
     @mock_s3
     @mock_glue
-    def test_create_new_partition_batches_by_one_hundred(self):
+    def test_create_partition_batches_by_one_hundred(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 
@@ -139,12 +132,10 @@ class PartitionerTest(TestCase):
         create_partitions_mock = MagicMock(return_value=[])
         partitioner.glue.batch_create_partition = create_partitions_mock
 
-        partitioner.create_new_partitions()
+        partitioner.create_partitions(partitions)
 
-        first_list = [partitioner._partition_input(
-            p) for p in partitions[:100]]
-        second_list = [partitioner._partition_input(
-            p) for p in partitions[100:]]
+        first_list = [partitioner._partition_input(p) for p in partitions[:100]]
+        second_list = [partitioner._partition_input(p) for p in partitions[100:]]
         calls = [
             call(
                 DatabaseName=self.database,
@@ -161,7 +152,30 @@ class PartitionerTest(TestCase):
 
     @mock_s3
     @mock_glue
-    def test_create_new_partitions_with_bad_table_location(self):
+    def test_create_partition_already_exists_in_multiple_batches(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        partitions = sorted(self.helper.create_many_partitions(count=150))
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+
+        # prime partitions list with two partitions, one in each group
+        already_exists = [partitions[5], partitions[115]]
+        errors = partitioner.create_partitions(already_exists)
+        errors.should.be.empty
+
+        # now attempt to create them as part of a large batch
+        errors = partitioner.create_partitions(partitions)
+        errors.should.have.length_of(2)
+
+        for idx, error in enumerate(errors):
+            partition = already_exists[idx]
+            error["PartitionValues"].should.equal(partition.values)
+            error["ErrorDetail"]["ErrorCode"].should.equal("AlreadyExistsException")
+
+    @mock_s3
+    @mock_glue
+    def test_create_partitions_on_disk_with_bad_table_location(self):
         self.s3.create_bucket(Bucket=self.bucket)
         database_input = self.helper.create_database_input()
         self.glue.create_database(**database_input)
@@ -172,22 +186,14 @@ class PartitionerTest(TestCase):
         self.glue.create_table(**table_input)
 
         partition = self.helper.create_partition_data()
+        full_location = f"s3://{self.bucket}/{self.table}/{partition.year}/{partition.month}/{partition.day}/{partition.hour}/"
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
-        mock = MagicMock(return_value=[])
-        partitioner.glue.batch_create_partition = mock
 
-        partitioner.create_new_partitions()
+        found_partitions = partitioner.partitions_on_disk()
 
-        _, kwargs = mock.call_args
-        kwargs.should.have.key("PartitionInputList")
-        input_list = kwargs["PartitionInputList"]
-        input_list.should.have.length_of(1)
-
-        part_input = input_list[0]
-        part_input["StorageDescriptor"]["Location"].should.equal(
-            f"s3://{self.bucket}/{self.table}/{partition.values[0]}/{partition.values[1]}/{partition.values[2]}/{partition.values[3]}/"
-        )
+        found_partitions.should.have.length_of(1)
+        found_partitions[0].location.should.equal(full_location)
 
     @mock_s3
     @mock_glue
@@ -197,7 +203,7 @@ class PartitionerTest(TestCase):
 
         partition = self.helper.create_partition_data()
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
-        partitioner.create_new_partitions()
+        partitioner.create_partitions([partition])
 
         existing_partitions = partitioner.existing_partitions()
         existing_partitions.should.have.length_of(1)
@@ -211,11 +217,12 @@ class PartitionerTest(TestCase):
         self.helper.make_database_and_table()
         self.helper.create_partition_data()
 
+        partition = self.helper.create_partition_data()
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
-        partitioner.create_new_partitions()
+        partitioner.create_partitions([partition])
 
         mock = MagicMock(return_value=[])
-        partitioner.glue.batch_delete_partitions = mock
+        partitioner.glue.batch_delete_partition = mock
 
         to_delete = partitioner.existing_partitions()
         partitioner.delete_partitions(to_delete)
@@ -235,10 +242,10 @@ class PartitionerTest(TestCase):
         partitions = sorted(self.helper.create_many_partitions(count=30))
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
-        partitioner.create_new_partitions()
+        partitioner.create_partitions(partitions)
 
         mock = MagicMock(return_value=[])
-        partitioner.glue.batch_delete_partitions = mock
+        partitioner.glue.batch_delete_partition = mock
 
         existing_partitions = partitioner.existing_partitions()
         partitioner.delete_partitions(existing_partitions)
@@ -307,7 +314,65 @@ class PartitionerTest(TestCase):
 
     @mock_s3
     @mock_glue
-    def test_update_moved_partitions(self):
+    def test_find_moved_partitions(self):
+        old_location = "s3://old-bucket/table/"
+
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        partitions = sorted(self.helper.create_many_partitions(count=15))
+
+        batch_input = []
+        for partition in partitions:
+            batch_input.append({
+                "Values": partition.values,
+                "StorageDescriptor": {
+                    "Location": f"{old_location}/data/"
+                }
+            })
+
+        self.glue.batch_create_partition(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionInputList=batch_input)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        moved = partitioner.find_moved_partitions()
+
+        moved.should.have.length_of(len(partitions))
+
+        moved.sort()
+        partitions.sort()
+
+        for idx, partition in enumerate(partitions):
+            moved[idx].should.equal(partition)
+
+    @mock_s3
+    @mock_glue
+    def test_find_moved_partitions_with_missing_partitions(self):
+        old_location = "s3://old-bucket/table/"
+
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        self.glue.create_partition(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionInput={
+                "Values": ["2019", "01", "01", "01"],
+                "StorageDescriptor": {"Location": f"{old_location}/data/"}
+            })
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        mock = MagicMock()
+        partitioner.glue.update_partition = mock
+
+        updated = partitioner.find_moved_partitions()
+        updated.should.be.empty
+
+    @mock_s3
+    @mock_glue
+    def test_update_partition_locations(self):
         old_location = "s3://old-bucket/table/"
 
         self.s3.create_bucket(Bucket=self.bucket)
@@ -340,9 +405,62 @@ class PartitionerTest(TestCase):
         mock = MagicMock()
         partitioner.glue.update_partition = mock
 
-        partitioner.update_moved_partitions()
+        moved = partitioner.find_moved_partitions()
+        errors = partitioner.update_partition_locations(moved)
 
+        errors.should.be.empty
         mock.assert_has_calls(calls, any_order=True)
+
+    @mock_glue
+    def test_update_partition_locations_with_non_existent_partition(self):
+        self.helper.make_database_and_table()
+        bad_partition = Partition("2019", "01", "01", "01", "s3://who/cares/")
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        mock = MagicMock()
+        partitioner.glue.update_partition = mock
+
+        errors = partitioner.update_partition_locations([bad_partition])
+        errors.should.have.length_of(1)
+        errors[0]["Partition"].should.equal(bad_partition.values)
+        mock.assert_not_called()
+
+    @mock_glue
+    def test_update_partition_locations_with_mix_of_good_and_bad(self):
+        self.helper.make_database_and_table()
+
+        good_old_location = "s3://old-bucket/table/data1/"
+        good_new_location = f"s3://{self.bucket}/{self.table}/2019-01-01-01/"
+        good_partition = Partition("2019", "01", "01", "01", good_old_location)
+        bad_partition = Partition("2018", "02", "02", "02", "s3://old-bucket/table/data2/")
+
+        self.glue.create_partition(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionInput={
+                "Values": good_partition.values,
+                "StorageDescriptor": {"Location": good_partition.location}
+            })
+
+        good_partition.location = good_new_location
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        mock = MagicMock()
+        partitioner.glue.update_partition = mock
+
+        errors = partitioner.update_partition_locations([bad_partition, good_partition])
+
+        mock.assert_called_with(
+            DatabaseName=self.database,
+            TableName=self.table,
+            PartitionValueList=good_partition.values,
+            PartitionInput={
+                "Values": good_partition.values,
+                "StorageDescriptor": {"Location": good_new_location}
+            })
+
+        errors.should.have.length_of(1)
+        errors[0]["Partition"].should.equal(bad_partition.values)
 
 
 class PartitionTest(TestCase):

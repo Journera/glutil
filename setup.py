@@ -9,7 +9,7 @@ import os
 import sys
 from shutil import rmtree
 
-from setuptools import setup, Command
+from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'glutil'
@@ -109,12 +109,12 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=['glutil'],
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
+    packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
+    entry_points={
+        'console_scripts': ['glutil=glutil:cli'],
+    },
     install_requires=REQUIRED,
-    test_require=TEST_REQUIRED,
+    tests_require=TEST_REQUIRED,
     include_package_data=True,
     license='BSD',
     classifiers=[

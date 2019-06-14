@@ -1,190 +1,130 @@
-# Athena/Glue Partition Management Utilities
+# Glutil
 
-Amazon's Athena and Glue are generally pretty great, but sometimes things don't play well together, or a configuration mistake was made.
+A collection of utilities for managing AWS Glue partitions.
+
+## Background
+
+Amazon's Glue Catalog is generally pretty great, but sometimes things don't play well together, or a configuration mistake was made.
 For those cases, we have these utilities.
 
-At Journera, our main use case for this project is enabling partitions on tables written by Kinesis Firehoses which are not writing data in Hive-compliant directory structures.
+At Journera, our original use case for this project was as a Glue Crawler replacement for tables that don't use Hive-compliant path structures.
 For the most part this is a workaround, because at present Terraform (which we use to manage our Firehoses) does not support using formatted prefixes with data written in JSON.
 
-## Setup
+## Provided Utilities
 
-We develop and run these scripts with Python 3.x.
-Our only dependency is boto3, for communicating with AWS.
+There are three main ways to use these utilities, either by using the `glutil` library in your python code, by using the provided `glutil` command line script, or as a lambda replacement for a Glue Crawler.
 
-## `athena_partitioner.py`
+## Built-in Assumptions
 
-`athena_partitioner` is meant to be an alternative to AWS Glue Crawlers for Athena/Glue tables that are backed by S3.
+Because `glutil` started life as a way to work with Journera-managed data there are still a number of assumptions built in to the code.
+Ideally these will be removed in the future to enable use with more diverse sets of data.
 
-The Glue Crawlers work great, if you have your data stored in Hive-compliant partition directory structures.
-Unfortunately that's not always possible, so we've created this lambda.
+1.  The tables use S3 as their backing data store.
 
-At present, the `athena_partitioner` can crawl S3-backed tables where data is kept in the following structures:
+1.  All partitions are stored under the table's location.
 
-```
-s3://bucket/any/path/to/table/YYYY/MM/DD/HH/data_file.ext
-s3://bucket/any/path/to/table/year=YYYY/month=MM/day=DD/hour=HH/data_file.ext
-```
+    For example, if you have a table with the location `s3://some-data-bucket/my-table/`, `glutil` will only find partitions located in `s3://some-data-bucket/my-table/`.
+    You table location can be as deep or shallow as you want, `glutil` will operate the same for a table located in `s3://bucket/path/to/table/it/goes/here/` and `s3://bucket/`.
 
-The partitioner can be run as a lambda to pick up new data hourly for frequently used tables, or locally for tables only occasionally used.
-For more information, see [Running the Partitioner](#running-the-partitioner).
+1.  Your partition keys are `[year, month, day, hour]`.
 
+1.  Your partitions are stored in one of these two path schemas, assuming your table is located at `s3://bucket/table/`:
 
-### Semantics
+    ```
+    s3://bucket/table/YYYY/MM/DD/HH/
+    s3://bucket/table/year=YYYY/month=MM/day=DD/hour=HH/
+    ```
 
-The way the partitioner works is by crawling S3, starting from a glue table's location, and searching for `year/month/day/hour/` directory structures.
-For all the structures it finds, it determines if a partition matching the found values exist, and if not, creating the found partitions.
+## IAM Permissions
 
-For example, assume you have a Glue table called stored in `s3://some-data-bucket/glue/my-table/`, and you have the following data in S3 that should be added as partitions to the table:
+To use `glutil` you need the following IAM permissions:
 
-```
-s3://some-data-bucket/glue/my-table/2019/01/02/03/data-1.json
-s3://some-data-bucket/glue/my-table/2019/01/02/22/data-2.json
-s3://some-data-bucket/glue/my-table/2019/03/13/15/data-3.json
-```
+- `glue:GetDatabase`
+- `glue:GetTable`
+- `glue:GetTables`
+- `glue:BatchCreatePartition`
+- `glue:BatchDeleteTable`
+- `glue:BatchDeletePartition`
+- `glue:GetPartitions`
+- `glue:UpdatePartition`
+- `s3:ListBucket` on the buckets containing your data
+- `s3:GetObject` on the buckets containing your data
 
-The partitioner will find the following partitions:
+If you're only using the `create-partition` lambda, you can get by with only:
 
-```
-year=2019 month=01 day=02 hour=03
-year=2019 month=01 day=02 hour=22
-year=2019 month=03 day=13 hour=15
-```
+- `glue:GetDatabase`
+- `glue:GetTable`
+- `glue:BatchCreatePartition`
+- `glue:GetPartitions`
+- `s3:ListBucket`
+- `s3:GetObject`
 
-From there, the partitioner will determine, for each of those, if the partition already exists, and will create a new partition for each one that doesn't.
+## `glutil` command line interface
 
-Similarly, the partitioner will also work on data in this structure (and result in the same partitions as above):
+The `glutil` CLI includes a number of subcommands for managing partitions and fixing a glue catalog when things go wrong.
+Most of the commands were written to fix issues caused by a Glue Crawler gone wrong, moving underlying data, or dealing with newly created data.
 
-```
-s3://some-data-bucket/glue/my-table/year=2019/month=01/day=02/hour=03/data-1.json
-s3://some-data-bucket/glue/my-table/year=2019/month=01/day=02/hour=22/data-2.json
-s3://some-data-bucket/glue/my-table/year=2019/month=03/day=13/hour=15/data-3.json
-```
+For the most part, they operate with the leading principle that any action they take can be reversed (if it was an incorrect action) by running the `glutil create-partitions` command.
 
-### Running the partitioner
+All commands support the `--dry-run` flag, which will output the command's expected result without modifying the glue catalog.
 
-`athena_partitioner.py` can be invoked as a lambda or locally.
+Below are short descriptions of the available commands.
+For larger descriptions and command line arguments, run `glutil <command> --help`.
 
-Invoking it as a lambda assumes the following event:
+### `glutil create-partitions`
 
-``` json
-{
-  "database": "glue-database-name",
-  "table": "glue-table-name"
-}
-```
+`create-partitions` is the original use case for this code.
+Running it will search S3 for partitioned data, and will create new partitions for data missing from the glue catalog.
 
-Invoking it locally uses the following arguments:
+### `glutil delete-all-partitions`
 
-``` bash
-./athena_partitioner.py glue-database-name glue-table-name
-```
+`delete-all-partitions` will query the glue catalog and delete any partitions attached
+to the specified table.
+For the most part it is substantially faster to just delete the entire table and recreate it because of AWS batch limits, but sometimes it's harder to recreate than to remove all partitions.
 
-When invoking locally, you can set the AWS profile to use by either setting your `AWS_PROFILE` environment variable or passing in a profile with the `--profile` flag.
+### `glutil delete-bad-partitions`
 
+`delete-bad-partitions` will remove partitions that meet the following criteria from the catalog:
 
-## Utility Scripts
+- Partitions without any data in S3
+- Partitions with values that do not match their S3 location (ex. Partition with values `[2019 01 02 03]` with a location of anything other than `s3://table/path/2019/01/02/03/`)
 
-There are a couple utility scripts in the `util` directory, that can help with fixing potentially broken tables or partitions.
+In general, if you use `glutil create-partition` multiple times and see the same partition attempt to be created both times, you should run `delete-bad-partitions` and try `create-partitions` again.
 
-The leading principal of these utility scripts is that after running one of them, running `athena-partitioner.py` should result in a fixed Athena table.
-As such, while some of them are destructive, none of them do anything irreversible.
+### `glutil delete-missing-partitions`
 
+`delete-missing-partitions` will remove any partition in the glue catalog without data in S3.
 
-### `util/delete-all-partitions`
+### `glutil update-partitions`
 
-`delete-all-partitions` will iterate through all partitions that exist in a table and remove them.
-In certain cases this can be more useful than deleting an entire table and recreating it, because you're not making changes to the table itself, and just want to reload the data.
+`update-partitions` should be run after moving your data in S3 and updating your table's location in the catalog.
+It updates partitions by finding all partitions in S3, and checking if a partition with matching values exists in the catalog.
+If it finds a matching partition, it updates the existing partition with the new location.
 
-``` bash
-./util/delete-all-partitions <database> <table> [--profile <aws profile name>] [--dry-run]
-```
+### `glutil delete-bad-tables`
 
-### `util/delete-bad-partitions`
+Sometimes when running a glue crawler, the crawler doesn't your table's data correctly, and instead sees what should be partitions as tables.
+When this happens, it may create a large number of junk tables in the catalog.
+`delete-bad-tables` should be run to fix this.
 
-`delete-bad-partitions` will remove "bad" partitions, where bad is defined as partitions with their locations set to something other than an s3 path that matches the partition definition.
-(ie. if the partition `[2019, 03, 04, 05]` has the location `s3://bucket/prefix/2018/01/01/01`, the partition will be deleted)
+`delete-bad-tables` deletes any tables in your glue catalog that meet the following criteria:
 
-This script should be run if `athena_partitioner.py` has a number of partitions that it attempts to add on subsequent runs, that appear to be unsuccessful.
-In most cases when this happens, it's due to the bad location.
+-   A table with a path that is below another table's path.
 
-``` bash
-./util/delete-bad-partitions <database> <table> [--profile <aws profile name>] [--dry-run]
-```
+    For example, if you have two tables, with these paths:
 
-### `util/delete-missing-partitions`
+    ```
+    s3://some-data-bucket/table-path/, and
+    s3://some-data-bucket/table-path/another-table/
+    ```
 
-When migrating data to new buckets, I found a number of partitions which didn't exist on disk (confirmed by looking at the old data locations).
-These scripts will list which partitions we're unable to find on disk and delete them.
+    The table at `s3://some-data-bucket/table-path/another-table/` will be deleted.
 
-Run `delete-missing-partitions` with `--dry-run` and inspecting the partitions to be deleted manually.
+-   A table with the same location as another, with a name that's a superstring of the other's (this is from the glue crawler semantic of creating tables which would otherwise have the same name with the name {table}-somelongid).
 
-``` bash
-./util/list-missing-partitions <database> <table> <aws profile name>
-# => if there are any missing partitions, they'll be printed in array format of [yyyy mm dd hh]
-#    ex. [2019 03 21 13]
+    For example, if you have the tables `foo` and `foo-buzzer`, both with the same location, `foo-buzzer` will be deleted.
 
-# now manually inspect them
-aws --profile <aws profile name> glue get-partition --database-name <database> --table-name <table> --partition-values yyyy mm dd hh
+## Running `create-partitions` as a Lambda
 
-# ex.
-aws --profile my-profile glue get-partition --database-name my_database --table-name my_table --partition-values 2019 03 21 13
-
-# => the output of this will be a big json blob describing the partition.]
-#    the information we mainly care about at this point is the location,
-#        .Partition.StorageDescriptor.Location
-#    if you don't want to look at the rest of the output, you can add
-#        --query 'Partition.StorageDescriptor.Location'
-#    to the end of the get-partition command. But it can be useful to look at the full output
-#    to see if there are any obvious errors with that
-
-# now that you have the partition location, look in the s3 bucket to see if any data exists
-aws --profile <aws profile name> s3 ls <location from above>
-
-# ex.
-aws --profile my-profile s3 ls s3://my-bucket/warehose/my_table/year=2019/month=03/day=12/hour=13/
-
-# if any data exists for that partition, the files will be listed out.
-# if the result of that command is nothing, start removing directories to confirm any data exists.
-#
-# it can be beneficial to look at a known good partition, and confirm the paths are similar.
-
-# if you've confirmed that the partition has no data, it is safe to delete it, which you can do with
-./util/delete-missing-partitions <database> <table> [--profile <aws profile name>] [--dry-run]
-```
-
-Like `delete-bad-partitions` and `delete-all-partitions`, if the table location is up to date in the glue catalog, after running `delete-missing-partitions`, the next `athena-partitioner.py` run will find and add any partitions that exist on disk.
-
-### `util/update-partitions`
-
-`update-partitions` was written as part of our data migration, where we moved the backing data from disparate, single-purpose s3 buckets to a single, unified s3 bucket per-environment.
-It was written to avoid deleting and recreating tables as the data was moved.
-
-To use `update-partitions`, the table's location needs to be updated to its new location (usually by running an athena `alter table <name> set location '<new s3 location>'`), and the backing data moved from the old location to the new.
-
-How `update-partitions` functions is by grabbing all existing partitions, and comparing them against partitions that exist on disk.
-The script compares the partition values (YYYY MM DD HH) with partitions found in the new S3 location, and if there are matches, updates the partition to use the new location.
-
-``` bash
-./util/update-partitions <database> <table> [--profile <aws profile name>] [--dry-run]
-```
-
-
-## Run Unit Tests
-
-There are some unit tests for the Partitioner class (in `glutil/partitioner.py`) located in `tests/partitioner_test.py`.
-To run these, you need to have `moto` (the aws mocking library) and `expects` (a BDD framework) installed.
-These can be installed using `pip install -r requirements-dev.txt`.
-
-At present, the Partitioner class is not fully tested.
-This is because moto doesn't fully support the glue api, which we need to be able to test further parts of the partitioner well.
-
-``` bash
-# install dev requirements
-pip install -r requirements-dev.txt
-
-# one of the dev requirements is nosetests, to make running tests easier
-nosetests tests
-
-# or if you don't want to see the boto logging output on test failures (it's mostly useless)
-nosetests --nologcapture tests
-```
+Journera's biggest use for this library is as a Glue Crawler replacement for tables and datasets the glue crawlers have problems parsing.
+Information on this lambda can be found in the [lambda](./lambda) directory.

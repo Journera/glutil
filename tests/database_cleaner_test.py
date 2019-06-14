@@ -124,3 +124,77 @@ class DatabaseCleanerTest(TestCase):
 
         result = cleaner.delete_tables([table1, table2])
         result.should.be.empty
+
+    @mock_glue
+    def test_delete_table_that_doesnt_exist(self):
+        client = boto3.client("glue", region_name=self.region)
+        database_input = self.helper.create_database_input()
+        client.create_database(**database_input)
+
+        table_input = self.helper.create_table_input(
+            name="table", location="s3://test-bucket/table/")
+        table_input["TableInput"]["DatabaseName"] = table_input["DatabaseName"]
+        table = Table(table_input["TableInput"])
+
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
+        result = cleaner.delete_tables([table])
+        result.should.have.length_of(1)
+
+    @mock_glue
+    def tests_refresh_tree(self):
+        client = boto3.client("glue", region_name=self.region)
+        database_input = self.helper.create_database_input()
+        client.create_database(**database_input)
+
+        table1_input = self.helper.create_table_input(
+            name="table", location="s3://test-bucket/table/")
+        client.create_table(**table1_input)
+        table1_input["TableInput"]["DatabaseName"] = table1_input["DatabaseName"]
+        table1 = Table(table1_input["TableInput"])
+
+        table2_input = self.helper.create_table_input(
+            name="table-foobarbaz", location="s3://test-bucket/table/")
+        client.create_table(**table2_input)
+        table2_input["TableInput"]["DatabaseName"] = table2_input["DatabaseName"]
+        table2 = Table(table2_input["TableInput"])
+
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
+        cleaner.table_trees  # call to prime the pump
+
+        result = cleaner.delete_tables([table1, table2])
+        result.should.be.empty
+
+        cleaner.child_tables().should_not.be.empty
+
+        cleaner.refresh_trees()
+        cleaner.child_tables().should.be.empty
+
+
+class TableTest(TestCase):
+    def make_table(self, name, location, database):
+        return Table({
+            "Name": name,
+            "DatabaseName": database,
+            "StorageDescriptor": {"Location": location},
+        })
+
+    def test_table_comparisons(self):
+        t1 = self.make_table("foo", "s3://bucket/foo/", "db1")
+        t2 = self.make_table("bar", "s3://bucket/bar/", "db1")
+        (t1 > t2).should.be.false
+        (t1 < t2).should.be.true
+
+        t3 = self.make_table("groo", "s3://bucket/foo/", "db1")
+        (t1 > t3).should.be.true
+
+        t4 = self.make_table("foo", "s3://bucket/z-foo/", "db1")
+        (t1 > t4).should.be.true
+
+        t5 = self.make_table("foo", "s3://bucket/foo/", "db1")
+        t5.should.equal(t1)
+
+        t6 = self.make_table("foo", "s3://bucket/foo/", "db2")
+        (t1 > t6).should.be.true
+
+        t7 = self.make_table("foo", "s3://bucket/foo", "db1")
+        t7.should.equal(t1)

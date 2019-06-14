@@ -2,7 +2,8 @@ from itertools import zip_longest
 
 
 class GlutilError(Exception):  # pragma: no cover
-    def __init__(self, message=None, source=None):
+    def __init__(self, error_type=None, message=None, source=None):
+        self.error_type = error_type
         self.source = source
         self.message = message
         super().__init__(self, message)
@@ -10,7 +11,7 @@ class GlutilError(Exception):  # pragma: no cover
 
 def grouper(iterable, n):
     args = [iter(iterable)] * n
-    return zip_longest(*args)
+    return map(lambda x: list(filter(None, x)), zip_longest(*args))
 
 
 def paginated_response(function, args, container_name):
@@ -31,9 +32,10 @@ def paginated_response(function, args, container_name):
     return items
 
 
-def print_batch_errors(errors, obj_type, obj_key):
-    print("One or more errors occurred when attempting to delete", obj_type)
+def print_batch_errors(errors, obj_type="partitions", obj_key="PartitionValues", action="delete"):
+    if errors:
+        print("One or more errors occurred when attempting to", action, obj_type)
 
-    for error in errors:
-        print("Error deleting {}: {}".format(
-            error[obj_key], error["ErrorDetail"]["ErrorCode"]))
+        for error in errors:
+            print("Error on {}: {}".format(
+                error[obj_key], error["ErrorDetail"]["ErrorCode"]))

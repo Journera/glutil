@@ -1,5 +1,6 @@
 import re
 import boto3
+import botocore
 from functools import total_ordering
 from .utils import grouper, GlutilError, paginated_response
 
@@ -86,8 +87,7 @@ class PartitionMap(object):
         return self.map.get(partition.year, {}) \
             .get(partition.month, {}) \
             .get(partition.day, {}) \
-            .get(partition.hour, None) \
-
+            .get(partition.hour, None)
 
 
 class Partitioner(object):
@@ -95,9 +95,16 @@ class Partitioner(object):
         self.database = database
         self.table = table
 
-        self.session = boto3.Session(
-            profile_name=aws_profile,
-            region_name=aws_region)
+        try:
+            self.session = boto3.Session(
+                profile_name=aws_profile,
+                region_name=aws_region)
+        except botocore.exceptions.ProfileNotFound as e:
+            raise GlutilError(
+                error_type="ProfileNotFound",
+                message=f"No such profile {aws_profile}.",
+                source=e)
+
         self.s3 = self.session.client("s3")
         self.glue = self.session.client("glue")
 
@@ -107,7 +114,14 @@ class Partitioner(object):
                 Name=self.table)
         except self.glue.exceptions.AccessDeniedException as e:  # pragma: no cover
             raise GlutilError(
+                error_type="AccessDenied",
                 message="You do not have permission to run GetTable",
+                source=e)
+        except self.glue.exceptions.EntityNotFoundException as e:
+            entity_message = e.response["Error"]["Message"]
+            raise GlutilError(
+                error_type="EntityNotFound",
+                message=f"Error, could not find {entity_message}",
                 source=e)
 
         self.storage_descriptor = self.table_definition["Table"]["StorageDescriptor"]
@@ -186,50 +200,21 @@ class Partitioner(object):
 
         return Partition(*values, raw=partition)
 
-    def create_new_partitions(self):
-        print(
-            "Running partitioner for {}.{}".format(
-                self.database,
-                self.table))
-        print("\tLooking for partitions in s3://{}/{}".format(self.bucket, self.prefix))
+    def create_partitions(self, partitions):
+        groups = grouper(partitions, 100)
 
-        found_partitions = set(self.partitions_on_disk())
-        existing_partitions = set(self.existing_partitions())
-        partitions = sorted(found_partitions - existing_partitions)
+        errors = []
+        for group in groups:
+            partition_input = list(map(self._partition_input, group))
 
-        print("\tfound {} new partitions to create".format(len(partitions)))
-
-        # break early
-        if len(partitions) == 0:
-            return
-
-        if len(partitions) <= 50:
-            print("\t{}".format(", ".join(map(str, partitions))))
-
-        groups = list(grouper(partitions, 100))
-        num_groups = len(groups)
-
-        all_errors = []
-        for i, group in enumerate(groups):
-            print("\tCreating chunk {} of {}".format(i + 1, num_groups))
-            current_partitions = filter(None, group)
-            errors = self._create_partitions(current_partitions)
-            if errors:
-                all_errors.extend(errors)
-        return all_errors
-
-    def _create_partitions(self, partitions):
-        partition_input = list(map(self._partition_input, partitions))
-
-        response = self.glue.batch_create_partition(
-            DatabaseName=self.database,
-            TableName=self.table,
-            PartitionInputList=partition_input,
-        )
-
-        if "Errors" in response:
-            return response["Errors"]
-        return []
+            response = self.glue.batch_create_partition(
+                DatabaseName=self.database,
+                TableName=self.table,
+                PartitionInputList=partition_input,
+            )
+            if "Errors" in response:
+                errors.extend(response["Errors"])
+        return errors
 
     def _partition_input(self, partition):
         storage_desc = self.storage_descriptor.copy()
@@ -257,12 +242,14 @@ class Partitioner(object):
         Returns:
             list of Partition
         """
-        missing = self.missing_partitions()
+        missing = set(self.missing_partitions())
 
         existing = set(self.existing_partitions())
         found = set(self.partitions_on_disk())
 
-        return list(existing - found) + missing
+        to_delete = list((existing - found) | missing)
+        to_delete.sort()
+        return to_delete
 
     def missing_partitions(self):
         """Return a list of partitions that exist in the Glue database, but not
@@ -277,6 +264,7 @@ class Partitioner(object):
             if partition.values not in found_values:
                 missing.append(partition)
 
+        missing.sort()
         return missing
 
     def delete_partitions(self, partitions_to_delete):
@@ -300,20 +288,14 @@ class Partitioner(object):
 
         errors = []
 
-        # The batch_delete_partitions API method only supports deleting 25
+        # The batch_delete_partition API method only supports deleting 25
         # partitions per call.
         groups = grouper(partitions_to_delete, 25)
-
         for group in groups:
-            # the grouper function fills the final group with Nones to reach
-            # the determined length. We need to remove those Nones
-            partitions = filter(None, group)
-
             request_input = [
-                {"Values": [p.year, p.month, p.day, p.hour]}
-                for p in partitions]
+                {"Values": [p.year, p.month, p.day, p.hour]} for p in group]
 
-            response = self.glue.batch_delete_partitions(
+            response = self.glue.batch_delete_partition(
                 DatabaseName=self.database,
                 TableName=self.table,
                 PartitionsToDelete=request_input)
@@ -323,40 +305,80 @@ class Partitioner(object):
 
         return errors
 
-    def update_moved_partitions(self, dry_run=False):
-        """Find matched pairs of partitions on disk and partitions in the
-        catalog with the same values, and update the catalog to reflect the
-        found disk location"""
+    def find_moved_partitions(self):
+        """Find partitions that have been moved to the table's new location.
+
+        This function expects that the table's location has already
+        been updated in the glue catalog, and that the underlying data has also
+        been moved.
+
+        Returns:
+            List of Partitions that exist in the updated S3 location, that
+            match the values of a partition that exists in the current catalog,
+            that also have a different location than existing partition in the
+            catalog.
+        """
 
         existing = self.existing_partitions()
         found = PartitionMap(self.partitions_on_disk())
 
-        not_updated = set(existing)
+        moved = []
         for partition in existing:
             matching = found.get(partition)
             if matching:
-                not_updated.remove(partition)
-
                 if partition != matching:
-                    print("Updating", partition)
+                    moved.append(matching)
 
-                    print(partition, matching)
-                    print(partition.location, matching.location)
-                    print()
+        return moved
 
-                    if not dry_run:
-                        partition.raw["StorageDescriptor"]["Location"] = matching.location
-                        for key in [
-                            "CreationTime",
-                            "DatabaseName",
-                                "TableName"]:
-                            if key in partition.raw:
-                                del partition.raw[key]
+    def update_partition_locations(self, moved):
+        """Update matched partition locations.
 
-                        self.glue.update_partition(
-                            DatabaseName=self.database,
-                            TableName=self.table,
-                            PartitionValueList=partition.raw["Values"],
-                            PartitionInput=partition.raw)
+        This function will use the existing partition definition in the glue
+        catalog and only update the StorageDescriptor.Location in the catalog.
+        All other details will remain the same.
 
-        print(len(not_updated), "partition not updated")
+        Args:
+            partitions (:obj:`list` of :obj:`Partition`): The partitions to be
+                updated. The values should match those currently in the
+                catalog, but the location should be the updated location.
+                The output of find_moved_partitions matches the expected input.
+
+        Returns:
+            List of AWS Error objects, in the form of
+            {
+                "ErrorDetail": {
+                    "ErrorCode": "TheErrorName",
+                    "ErrorMessage": "short description"
+                }
+            }
+        """
+
+        errors = []
+        for partition in moved:
+            try:
+                resp = self.glue.get_partition(
+                    DatabaseName=self.database,
+                    TableName=self.table,
+                    PartitionValues=partition.values)
+
+                definition = resp["Partition"]
+
+                definition["StorageDescriptor"]["Location"] = partition.location
+                for key in ["CreationTime", "DatabaseName", "TableName"]:
+                    del definition[key]
+
+                resp = self.glue.update_partition(
+                    DatabaseName=self.database,
+                    TableName=self.table,
+                    PartitionValueList=definition["Values"],
+                    PartitionInput=definition)
+            except self.glue.exceptions.EntityNotFoundException as e:
+                errors.append({
+                    "Partition": partition.values,
+                    "ErrorDetail": {
+                        "ErrorCode": e.response["Error"]["Code"],
+                        "ErrorMessage": e.response["Error"]["Message"]
+                    }})
+
+        return errors
