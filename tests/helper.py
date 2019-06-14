@@ -124,7 +124,10 @@ class GlueHelper(object):
         location_splits = partition.location[len("s3://"):].split("/")
         bucket = location_splits[0]
         path = "/".join(location_splits[1:])
-        s3_path = path + "/object.json"
+
+        if not path.endswith("/"):
+            path += "/"
+        s3_path = path + "object.json"
 
         s3 = boto3.client("s3", region_name="us-east-1")
         s3.put_object(
