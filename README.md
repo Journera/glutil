@@ -2,6 +2,12 @@
 
 A collection of utilities for managing AWS Glue partitions.
 
+## Hello Friends
+
+Glutil is currently in the process of being open sourced.
+There are still a couple small things we want to get done before calling that job done.
+As such, please pardon any sharp edges, and let us know about them by [creating an issue](https://github.com/Journera/glutil/issues/new).
+
 ## Background
 
 Amazon's Glue Catalog is generally pretty great, but sometimes things don't play well together, or a configuration mistake was made.
