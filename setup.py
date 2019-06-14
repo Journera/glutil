@@ -13,7 +13,7 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'glutil'
-DESCRIPTION = 'A collection of utilities for managing AWS Athena/Glue tables backed by S3'
+DESCRIPTION = 'A collection of utilities for managing AWS Glue tables backed by S3'
 URL = 'https://github.com/Journera/glutil'
 EMAIL = 'dkuntz@journera.com'
 AUTHOR = 'Journera Inc'
