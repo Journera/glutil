@@ -16,6 +16,20 @@ For those cases, we have these utilities.
 At Journera, our original use case for this project was as a Glue Crawler replacement for tables that don't use Hive-compliant path structures.
 For the most part this is a workaround, because at present Terraform (which we use to manage our Firehoses) does not support using formatted prefixes with data written in JSON.
 
+## Installation
+
+Glutil can be installed using pip.
+
+``` bash
+pip install glutil
+```
+
+If you wish to manually install it, you can download the repository and run
+
+``` bash
+python3 setup.py install
+```
+
 ## Provided Utilities
 
 There are three main ways to use these utilities, either by using the `glutil` library in your python code, by using the provided `glutil` command line script, or as a lambda replacement for a Glue Crawler.
