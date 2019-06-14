@@ -4,7 +4,7 @@ this_dir=$PWD
 lambda_zip=${this_dir}/lambda.zip
 
 # jump up to project root directory
-pushd ../../ > /dev/null
+pushd ../ > /dev/null
   # add glutil library to zip
   zip -rq ${lambda_zip} glutil/
 popd > /dev/null
