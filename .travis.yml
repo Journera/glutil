@@ -4,7 +4,12 @@ python:
   - '3.6'
   - '3.7'
 
+env:
+  - AWS_DEFAULT_REGION=us-east-1
 install:
   - pip install -r requirements-dev.txt
+
+  # travis and moto being weird
+  - pip install google-compute-engine
 script:
   - bash test.sh

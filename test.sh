@@ -6,4 +6,4 @@ flake8
 rm -f .coverage
 rm -rf cover/
 
-nosetests -sv --with-coverage --cover-html ./tests/
+nosetests -v --nologcapture --with-coverage --cover-html ./tests/
