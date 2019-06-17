@@ -9,6 +9,7 @@ import sys
 from glutil.serverless_function import create_found_partitions, handle
 from glutil import Partitioner
 
+
 class LambdaTest(TestCase):
     bucket = "test-bucket"
     database = "test_database"
