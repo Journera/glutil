@@ -1,6 +1,6 @@
 # Glutil
 
-A collection of utilities for managing data partitions with the AWS Glue Data Catalog.
+A collection of utilities for managing partitions of tables in the AWS Glue Data Catalog that are built on datasets stored in S3.
 
 ## Hello Friends
 
