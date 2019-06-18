@@ -39,7 +39,7 @@ class TableTree(object):
 
     TableTree represents a mapping of S3 paths to tables. Each TableTree
     is a node mapped to an S3 path, with two additional pieces of information:
-    all directories below the current path, and the Glue tables who's locations
+    all directories below the current path, and the Glue tables whose locations
     map are the same as the current path.
 
     In dict form, a TableTree looks like this:
@@ -125,8 +125,9 @@ class TableTree(object):
 
 
 class DatabaseCleaner(object):
-    """DatabaseCleaner is used to clean up a Glue database after a Crawler
-    creates tables which it should've picked up as Partitions.
+    """DatabaseCleaner is used to clean up a database in the Glue
+    Data Catalog after a Crawler creates tables which it should've
+    picked up as partitions.
     """
 
     def __init__(self, database, aws_profile=None, aws_region=None):
