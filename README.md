@@ -1,6 +1,6 @@
 # Glutil
 
-A collection of utilities for managing AWS Glue partitions.
+A collection of utilities for managing data partitions with the AWS Glue Data Catalog.
 
 ## Hello Friends
 
@@ -10,11 +10,11 @@ As such, please pardon any sharp edges, and let us know about them by [creating 
 
 ## Background
 
-Amazon's Glue Catalog is generally pretty great, but sometimes things don't play well together, or a configuration mistake was made.
+AWS's Glue Data Catalog is fully-integrated with AWS Athena, an ad-hoc query tool that uses the Hive metastore to build external tables on top of S3 data and PrestoDB to the data with standard SQL. Using Glue's Data Catalog with Athena is generally pretty great, but sometimes the two managed services don't play well together, or a configuration mistake was made (e.g. in the Athena table DDL).
 For those cases, we have these utilities.
 
-At Journera, our original use case for this project was as a Glue Crawler replacement for tables that don't use Hive-compliant path structures.
-For the most part this is a workaround, because at present Terraform (which we use to manage our Firehoses) does not support using formatted prefixes with data written in JSON.
+At Journera, our original use case for this project was as a Glue Crawler replacement for adding new partitions to Athena tables, managed with Glue's Data Catalog, that don't use Hive-compliant path structures and for tables built on top of datasets that the Glue Crawler could not crawl.
+For the most part this is a workaround, because of current limitations with the Glue Crawler and Terraform, which we use to manage our Kinesis Firehoses, does not support using formatted prefixes with data written in JSON.
 
 ## Installation
 
@@ -34,7 +34,7 @@ python3 setup.py install
 
 There are three main ways to use these utilities, either by using the `glutil` library in your python code, by using the provided `glutil` command line script, or as a lambda replacement for a Glue Crawler.
 
-## Built-in Assumptions
+## Built-In Assumptions
 
 Because `glutil` started life as a way to work with Journera-managed data there are still a number of assumptions built in to the code.
 Ideally these will be removed in the future to enable use with more diverse sets of data.
@@ -44,7 +44,7 @@ Ideally these will be removed in the future to enable use with more diverse sets
 1.  All partitions are stored under the table's location.
 
     For example, if you have a table with the location `s3://some-data-bucket/my-table/`, `glutil` will only find partitions located in `s3://some-data-bucket/my-table/`.
-    You table location can be as deep or shallow as you want, `glutil` will operate the same for a table located in `s3://bucket/path/to/table/it/goes/here/` and `s3://bucket/`.
+    Your table location can be as deep or shallow as you want, `glutil` will operate the same for a table located in `s3://bucket/path/to/table/it/goes/here/` and `s3://bucket/`.
 
 1.  Your partition keys are `[year, month, day, hour]`.
 
@@ -79,14 +79,14 @@ If you're only using the `create-partition` lambda, you can get by with only:
 - `s3:ListBucket`
 - `s3:GetObject`
 
-## `glutil` command line interface
+## `glutil` Command Line Interface (CLI)
 
-The `glutil` CLI includes a number of subcommands for managing partitions and fixing a glue catalog when things go wrong.
+The `glutil` CLI includes a number of subcommands for managing partitions and fixing the Glue Data Catalog when things go wrong.
 Most of the commands were written to fix issues caused by a Glue Crawler gone wrong, moving underlying data, or dealing with newly created data.
 
 For the most part, they operate with the leading principle that any action they take can be reversed (if it was an incorrect action) by running the `glutil create-partitions` command.
 
-All commands support the `--dry-run` flag, which will output the command's expected result without modifying the glue catalog.
+All commands support the `--dry-run` flag, which will output the command's expected result without modifying the Glue Data Catalog.
 
 Below are short descriptions of the available commands.
 For larger descriptions and command line arguments, run `glutil <command> --help`.
@@ -94,11 +94,11 @@ For larger descriptions and command line arguments, run `glutil <command> --help
 ### `glutil create-partitions`
 
 `create-partitions` is the original use case for this code.
-Running it will search S3 for partitioned data, and will create new partitions for data missing from the glue catalog.
+Running it will search S3 for partitioned data, and will create new partitions for data missing from the Glue Data Catalog.
 
 ### `glutil delete-all-partitions`
 
-`delete-all-partitions` will query the glue catalog and delete any partitions attached
+`delete-all-partitions` will query the Glue Data Catalog and delete any partitions attached
 to the specified table.
 For the most part it is substantially faster to just delete the entire table and recreate it because of AWS batch limits, but sometimes it's harder to recreate than to remove all partitions.
 
@@ -109,11 +109,11 @@ For the most part it is substantially faster to just delete the entire table and
 - Partitions without any data in S3
 - Partitions with values that do not match their S3 location (ex. Partition with values `[2019 01 02 03]` with a location of anything other than `s3://table/path/2019/01/02/03/`)
 
-In general, if you use `glutil create-partition` multiple times and see the same partition attempt to be created both times, you should run `delete-bad-partitions` and try `create-partitions` again.
+In general, if you use `glutil create-partitions` multiple times and see attempts to create the same partition both times, you should run `delete-bad-partitions` and try `create-partitions` again.
 
 ### `glutil delete-missing-partitions`
 
-`delete-missing-partitions` will remove any partition in the glue catalog without data in S3.
+`delete-missing-partitions` will remove any partition in the Glue Data Catalog without data in S3.
 
 ### `glutil update-partitions`
 
@@ -123,15 +123,15 @@ If it finds a matching partition, it updates the existing partition with the new
 
 ### `glutil delete-bad-tables`
 
-Sometimes when running a glue crawler, the crawler doesn't your table's data correctly, and instead sees what should be partitions as tables.
+Sometimes when running a Glue Crawler, the crawler doesn't aggregate the data correctly, and instead creates tables for individual partitions.
 When this happens, it may create a large number of junk tables in the catalog.
 `delete-bad-tables` should be run to fix this.
 
-`delete-bad-tables` deletes any tables in your glue catalog that meet the following criteria:
+`delete-bad-tables` deletes any tables in your Glue Data Catalog that meet the following criteria:
 
 -   A table with a path that is below another table's path.
 
-    For example, if you have two tables, with these paths:
+    For example, if you have two tables with these paths:
 
     ```
     s3://some-data-bucket/table-path/, and
@@ -140,11 +140,11 @@ When this happens, it may create a large number of junk tables in the catalog.
 
     The table at `s3://some-data-bucket/table-path/another-table/` will be deleted.
 
--   A table with the same location as another, with a name that's a superstring of the other's (this is from the glue crawler semantic of creating tables which would otherwise have the same name with the name {table}-somelongid).
+-   A table with the same location as another, with a name that's a superstring of the other's (this is from the Glue Crawler semantic of creating tables which would otherwise have the same name with the name {table}-somelongid).
 
     For example, if you have the tables `foo` and `foo-buzzer`, both with the same location, `foo-buzzer` will be deleted.
 
 ## Running `create-partitions` as a Lambda
 
-Journera's biggest use for this library is as a Glue Crawler replacement for tables and datasets the glue crawlers have problems parsing.
+Journera's biggest use for this library is as a Glue Crawler replacement for tables and datasets the Glue Crawlers have problems parsing.
 Information on this lambda can be found in the [lambda](./lambda) directory.

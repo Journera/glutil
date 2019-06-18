@@ -10,7 +10,7 @@ For example, if your table has the location of
 
 And you have data stored at
     s3://some-bucket/some-table/2019/01/02/03/, or
-    s3://some-bucket/some-table/year=2019/month=01/day=02/year=03/
+    s3://some-bucket/some-table/year=2019/month=01/day=02/hour=03/
 
 This script will create a partition with the values [2019 01 02 03].
 """
@@ -24,7 +24,6 @@ running this, you should run 'create-partitions'.
 NOTE: This will be substantially slower than deleting and recreating a table,
 and in most cases you should just do that instead of running this script.
 """
-
 
 delete_bad_partitions_help = """
 Delete "bad" partitions in a table.
@@ -49,7 +48,6 @@ After running this you should run the partitioner again to pick up the correct
 location of any deleted partitions.
 """
 
-
 delete_bad_tables_help = """
 Delete bad tables.
 
@@ -66,10 +64,9 @@ What is a bad table?
     location, while the other is named location_somerandomcharacters, the second
     is considered bad and deleted.
 
-Most of the time, these tables are created by the glue crawler doing something
+Most of the time, these tables are created by the Glue Crawler doing something
 we didn't want or expect.
 """
-
 
 delete_missing_partitions_help = """
 Delete missing partitions in a table.
@@ -77,7 +74,6 @@ Delete missing partitions in a table.
 This will remove any partitions currently in the database that do not exist on
 disk.
 """
-
 
 update_partitions_help = """
 Update partition locations.
