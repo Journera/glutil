@@ -1,6 +1,6 @@
-# Contributing to `glutil`
+# Contributing to Glutil
 
-Thank you for being interested in contributing to `glutil`!
+Thank you for being interested in contributing to Glutil!
 
 ## Building a test environment
 
