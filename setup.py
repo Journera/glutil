@@ -34,6 +34,7 @@ TEST_REQUIRED = [
     'faker>1',
     'coverage>=4.5',
     'sure>=1.4',
+    'flake8>=3.7',
 ]
 
 # The rest you shouldn't have to touch too much :)
