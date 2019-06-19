@@ -2,12 +2,6 @@
 
 A collection of utilities for managing partitions of tables in the AWS Glue Data Catalog that are built on datasets stored in S3.
 
-## Hello Friends
-
-`glutil` is currently in the process of being open sourced.
-There are still a couple small things we want to get done before calling that job done.
-As such, please pardon any sharp edges, and let us know about them by [creating an issue](https://github.com/Journera/glutil/issues/new).
-
 ## Background
 
 AWS's Glue Data Catalog provides an index of the location and schema of your data across AWS data stores and is used to reference sources and targets for ETL jobs in AWS Glue. It is fully-integrated with AWS Athena, an ad-hoc query tool that uses the Hive metastore to build external tables on top of S3 data and PrestoDB to query the data with standard SQL. Journera heavily uses Kinesis Firehoses to write data from our platform to S3 in near real-time, Athena for ad-hoc analysis of data on S3, and Glue's serverless engine to execute PySpark ETL jobs on S3 data using the tables defined in the Data Catalog. Using the Data Catalog is generally pretty great, but sometimes all of these managed services don't play well together, or a configuration mistake was made (e.g., in a table DDL). For those cases, we have these utilities.
@@ -147,3 +141,13 @@ When this happens, it may create a large number of junk tables in the catalog.
 
 Journera's biggest use for this library is as a Glue Crawler replacement for tables and datasets the Glue Crawlers have problems parsing.
 Information on this lambda can be found in the [lambda](./lambda) directory.
+
+## Contributing to `glutil`
+`glutil` was recently open-sourced. As such, please pardon any sharp edges, and let us know about them by [creating an issue](https://github.com/Journera/glutil/issues/new).
+
+All contributions, bug reports, bug fixes, documentation improvements, enhancements and ideas are welcome.
+
+A detailed overview on how to contribute can be found in the [contributing guide](CONTRIBUTING.md).
+
+## License
+[BSD 3](LICENSE)
