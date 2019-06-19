@@ -1,10 +1,10 @@
-# Glutil
+# glutil
 
 A collection of utilities for managing partitions of tables in the AWS Glue Data Catalog that are built on datasets stored in S3.
 
 ## Hello Friends
 
-Glutil is currently in the process of being open sourced.
+`glutil` is currently in the process of being open sourced.
 There are still a couple small things we want to get done before calling that job done.
 As such, please pardon any sharp edges, and let us know about them by [creating an issue](https://github.com/Journera/glutil/issues/new).
 
@@ -17,13 +17,13 @@ For the most part this is a workaround, because of current limitations with the 
 
 ## Installation
 
-Glutil can be installed using pip.
+`glutil` can be installed using pip.
 
 ``` bash
 pip install glutil
 ```
 
-If you wish to manually install it, you can download the repository and run
+If you wish to manually install it, you can clone the repository and run
 
 ``` bash
 python3 setup.py install

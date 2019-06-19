@@ -1,6 +1,6 @@
-# Contributing to Glutil
+# Contributing to `glutil`
 
-Thank you for being interested in contributing to Glutil!
+Thank you for being interested in contributing to `glutil`!
 
 ## Building a test environment
 
@@ -34,7 +34,7 @@ We strive for 100% test coverage, excluding only testing around AWS/Boto excepti
 
 A quick overview of our testing:
 
--   Tests are run using `nosetests`
+-   Tests are run using `nosetests`.
 -   Test coverage is generated using `coverage.py`, `nosetests` will print out a report of coverage after it's run.
 -   `flake8` as a linter to keep the code style at least somewhat consistent.
 -   The `sure` library is used to make tests more readable than plain asserts.
