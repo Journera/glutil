@@ -2,6 +2,8 @@
 
 A collection of utilities for managing partitions of tables in the AWS Glue Data Catalog that are built on datasets stored in S3.
 
+[![Build Status](https://travis-ci.org/Journera/glutil.svg?branch=master)](https://travis-ci.org/Journera/glutil)
+
 ## Background
 
 AWS's Glue Data Catalog provides an index of the location and schema of your data across AWS data stores and is used to reference sources and targets for ETL jobs in AWS Glue. It is fully-integrated with AWS Athena, an ad-hoc query tool that uses the Hive metastore to build external tables on top of S3 data and PrestoDB to query the data with standard SQL.
