@@ -1,19 +1,19 @@
 variable "glue_database_name" {
   type        = "string"
   default     = "example_database"
-  description = "Name of the Glue database to create and run the lambda off"
+  description = "Name of the database in the Glue Data Catalog to create and run the lambda off"
 }
 
 variable "glue_table_name" {
   type        = "string"
   default     = "example_table"
-  description = "Name of the Glue table to create and run the lambda off"
+  description = "Name of the table in the Glue Data Catalog to create and run the lambda off"
 }
 
 variable "table_storage_bucket" {
   type        = "string"
   default     = "example_bucket"
-  description = "Name of the S3 bucket where the data for the Glue table is stored"
+  description = "Name of the S3 bucket where the data for the table in the Glue Data Catalog is stored"
 }
 
 variable "lambda_file" {
@@ -60,7 +60,7 @@ resource "aws_iam_role_policy" "partitioner-permisions" {
 }
 
 data "aws_iam_policy_document" "partitioner-permissions" {
-  # Allow glue catalog access
+  # Allow Glue Data Catalog access
   statement {
     actions = [
       "glue:GetDatabase",

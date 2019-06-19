@@ -10,10 +10,11 @@ For example, if your table has the location of
 
 And you have data stored at
     s3://some-bucket/some-table/2019/01/02/03/, or
-    s3://some-bucket/some-table/year=2019/month=01/day=02/year=03/
+    s3://some-bucket/some-table/year=2019/month=01/day=02/hour=03/
 
 This script will create a partition with the values [2019 01 02 03].
 """
+
 
 delete_all_partitions_help = """
 Delete all partitions in a table.
@@ -66,7 +67,7 @@ What is a bad table?
     location, while the other is named location_somerandomcharacters, the second
     is considered bad and deleted.
 
-Most of the time, these tables are created by the glue crawler doing something
+Most of the time, these tables are created by the Glue Crawler doing something
 we didn't want or expect.
 """
 

@@ -231,16 +231,17 @@ class Partitioner(object):
     def bad_partitions(self):
         """Return a list of bad partitions
 
-        Bad partitions are defined as any partition that exists in AWS, but do
-        do not exist on disk, or exist on disk in a different location.
+        Bad partitions are defined as any partition that exists in the
+        Glue Data Catalog, but do not exist on disk, or exist on disk
+        in a different location.
 
         For example, a partition with the values [2019, 01, 01, 01] exists in
-        AWS with the location 2019/02/02/02 is considered bad. Similarly, a
-        partition that exists in s3://another-bucket/, while the table's
+        the Glue Data Catalog with the location 2019/02/02/02 is considered bad.
+        Similarly, a partition that exists in s3://another-bucket/, while the table's
         location is set to s3://this-bucket/ is also considered bad.
 
         Returns:
-            list of Partition
+            list of Partition objects
         """
         missing = set(self.missing_partitions())
 
@@ -252,8 +253,9 @@ class Partitioner(object):
         return to_delete
 
     def missing_partitions(self):
-        """Return a list of partitions that exist in the Glue database, but not
-        in the S3 bucket."""
+        """Return a list of partitions that exist in the Glue Data Catalog,
+        but not in the S3 bucket.
+        """
 
         existing = set(self.existing_partitions())
         found = set(self.partitions_on_disk())
@@ -268,17 +270,17 @@ class Partitioner(object):
         return missing
 
     def delete_partitions(self, partitions_to_delete):
-        """Remove partitions from the Glue database
+        """Remove partitions from the Glue Data Catalog
 
         Args:
-            partitions_to_delete (list): A list of Partitions to remove from
-                the Glue database
+            partitions_to_delete (list<Partition>): A list of Partition objects to remove from
+                the Glue Data Catalog
 
         Returns:
             list of Errors:
 
                 {
-                    "Partition": Partition,
+                    "Partition": partition,
                     "ErrorDetail": {
                         "ErrorCode": "The type of error encountered",
                         "ErrorMessage": "A longer description of the error",
@@ -309,7 +311,7 @@ class Partitioner(object):
         """Find partitions that have been moved to the table's new location.
 
         This function expects that the table's location has already
-        been updated in the glue catalog, and that the underlying data has also
+        been updated in the Glue Data Catalog, and that the underlying data has also
         been moved.
 
         Returns:
@@ -334,8 +336,8 @@ class Partitioner(object):
     def update_partition_locations(self, moved):
         """Update matched partition locations.
 
-        This function will use the existing partition definition in the glue
-        catalog and only update the StorageDescriptor.Location in the catalog.
+        This function will use the existing partition definition in the Glue Data
+        Catalog and only update the StorageDescriptor.Location in the catalog.
         All other details will remain the same.
 
         Args:
