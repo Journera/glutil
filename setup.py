@@ -15,7 +15,7 @@ from setuptools import find_packages, setup, Command
 NAME = 'glutil'
 DESCRIPTION = 'A collection of utilities for managing AWS Glue tables backed by S3'
 URL = 'https://github.com/Journera/glutil'
-EMAIL = 'dkuntz@journera.com'
+EMAIL = 'opensource@journera.com'
 AUTHOR = 'Journera Inc'
 REQUIRES_PYTHON = '>=3.6.0'
 VERSION = '0.1.1'
