@@ -1,12 +1,14 @@
-# glutil
+# Glutil
 
 A collection of utilities for managing partitions of tables in the AWS Glue Data Catalog that are built on datasets stored in S3.
 
 ## Background
 
-AWS's Glue Data Catalog provides an index of the location and schema of your data across AWS data stores and is used to reference sources and targets for ETL jobs in AWS Glue. It is fully-integrated with AWS Athena, an ad-hoc query tool that uses the Hive metastore to build external tables on top of S3 data and PrestoDB to query the data with standard SQL. Journera heavily uses Kinesis Firehoses to write data from our platform to S3 in near real-time, Athena for ad-hoc analysis of data on S3, and Glue's serverless engine to execute PySpark ETL jobs on S3 data using the tables defined in the Data Catalog. Using the Data Catalog is generally pretty great, but sometimes all of these managed services don't play well together, or a configuration mistake was made (e.g., in a table DDL). For those cases, we have these utilities.
+AWS's Glue Data Catalog provides an index of the location and schema of your data across AWS data stores and is used to reference sources and targets for ETL jobs in AWS Glue. It is fully-integrated with AWS Athena, an ad-hoc query tool that uses the Hive metastore to build external tables on top of S3 data and PrestoDB to query the data with standard SQL.
 
-At Journera, our original use case for this project was as a Glue Crawler replacement for adding new partitions to tables that don't use Hive-style partitions and for tables built on top of S3 datasets that the Glue Crawler could not successfully parse.
+Journera heavily uses Kinesis Firehoses to write data from our platform to S3 in near real-time, Athena for ad-hoc analysis of data on S3, and Glue's serverless engine to execute PySpark ETL jobs on S3 data using the tables defined in the Data Catalog. Using the Data Catalog is generally pretty great, but sometimes all of these managed services don't play well together, or a configuration mistake was made (e.g., in a table DDL). For those cases, we have these utilities.
+
+Our original use case for this project was as a Glue Crawler replacement for adding new partitions to tables that don't use Hive-style partitions and for tables built on top of S3 datasets that the Glue Crawler could not successfully parse.
 For the most part this is a workaround, because of current limitations with the Glue Crawler and Terraform, which does not support configuring Kinesis Firehoses to write JSON data to S3 using formatted prefixes.
 
 ## Installation
@@ -142,8 +144,8 @@ When this happens, it may create a large number of junk tables in the catalog.
 Journera's biggest use for this library is as a Glue Crawler replacement for tables and datasets the Glue Crawlers have problems parsing.
 Information on this lambda can be found in the [lambda](./lambda) directory.
 
-## Contributing to `glutil`
-`glutil` was recently open-sourced. As such, please pardon any sharp edges, and let us know about them by [creating an issue](https://github.com/Journera/glutil/issues/new).
+## Contributing to Glutil
+This project was recently open-sourced. As such, please pardon any sharp edges, and let us know about them by [creating an issue](https://github.com/Journera/glutil/issues/new).
 
 All contributions, bug reports, bug fixes, documentation improvements, enhancements and ideas are welcome.
 

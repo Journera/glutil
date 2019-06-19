@@ -241,7 +241,7 @@ class Partitioner(object):
         location is set to s3://this-bucket/ is also considered bad.
 
         Returns:
-            list of partitions
+            list of Partition objects
         """
         missing = set(self.missing_partitions())
 
@@ -273,7 +273,7 @@ class Partitioner(object):
         """Remove partitions from the Glue Data Catalog
 
         Args:
-            partitions_to_delete (list): A list of partitions to remove from
+            partitions_to_delete (list<Partition>): A list of Partition objects to remove from
                 the Glue Data Catalog
 
         Returns:

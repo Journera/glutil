@@ -1,10 +1,10 @@
 # Replacement Glue Crawler Lambda
 
-One of our primary uses of `glutil` is as a Glue Crawler analog for tables and data that the Glue Crawler cannot crawl.
+One of our primary uses of Glutil is as a Glue Crawler analog for tables and data that the Glue Crawler cannot crawl.
 Specifically, we've run into issues running crawlers over data in non Hive-partitioned path schemas.
 To overcome this, we created a lambda that operates similarly for crawling S3 data.
 
-As with the rest of `glutil` this lambda makes the same assumptions noted in the [main readme](../README.md#built-in-assumptions).
+As with the rest of Glutil this lambda makes the same assumptions noted in the [main readme](../README.md#built-in-assumptions).
 
 ## Building a Lambda-Compatible zip
 
