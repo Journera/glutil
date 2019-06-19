@@ -315,7 +315,7 @@ class Partitioner(object):
         been moved.
 
         Returns:
-            List of partitions that exist in the updated S3 location, that
+            List of Partitions that exist in the updated S3 location, that
             match the values of a partition that exists in the current catalog,
             that also have a different location than existing partition in the
             catalog.
