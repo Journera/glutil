@@ -491,3 +491,34 @@ class PartitionTest(TestCase):
         p4 = Partition("2019", "01", "01", "01", "s3://bucket/z-table/")
         (p1 > p4).should.be.true
         (p4 > p1).should.be.false
+
+    def test_parse_from_aws(self):
+        normal_aws_response = {
+            "Values": ["2019", "01", "02", "03"],
+            "StorageDescriptor": {
+                "Location": "s3://bucket/location/2019/01/02/03/",
+            },
+        }
+
+        partition = Partition.from_aws_response(normal_aws_response)
+        partition.year.should.equal("2019")
+        partition.month.should.equal("01")
+        partition.day.should.equal("02")
+        partition.hour.should.equal("03")
+        partition.location.should.equal("s3://bucket/location/2019/01/02/03/")
+
+        # Conform location gets normalized by Partition
+        bad_location_aws_response = {
+            "Values": ["2019", "01", "02", "03"],
+            "StorageDescriptor": {
+                "Location": "s3://bucket/location/2019/01/02/03",
+            },
+        }
+        partition2 = Partition.from_aws_response(bad_location_aws_response)
+        partition2.year.should.equal("2019")
+        partition2.month.should.equal("01")
+        partition2.day.should.equal("02")
+        partition2.hour.should.equal("03")
+        partition2.location.should.equal("s3://bucket/location/2019/01/02/03/")
+
+        partition2.should.equal(partition)

@@ -7,6 +7,17 @@ from .utils import grouper, GlutilError, paginated_response
 
 @total_ordering
 class Partition(object):
+    @classmethod
+    def from_aws_response(cls, response):
+        values = response["Values"].copy()
+        values.append(response["StorageDescriptor"]["Location"])
+
+        # append trailing slash, so it looks the same as the new partitions
+        if values[-1][-1] != "/":
+            values[-1] += "/"
+
+        return cls(*values, raw=response)
+
     def __init__(self, year, month, day, hour, location, raw=None):
         self.year = year
         self.month = month
@@ -188,17 +199,7 @@ class Partitioner(object):
         raw_partitions = paginated_response(
             self.glue.get_partitions, args, "Partitions")
 
-        return sorted([self._parse_partition(p) for p in raw_partitions])
-
-    def _parse_partition(self, partition):
-        values = partition["Values"].copy()
-        values.append(partition["StorageDescriptor"]["Location"])
-
-        # append trailing slash, so it looks the same as the new partitions
-        if values[-1][-1] != "/":
-            values[-1] += "/"
-
-        return Partition(*values, raw=partition)
+        return sorted([Partition.from_aws_response(p) for p in raw_partitions])
 
     def create_partitions(self, partitions):
         groups = grouper(partitions, 100)
