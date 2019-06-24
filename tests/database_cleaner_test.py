@@ -95,8 +95,6 @@ class DatabaseCleanerTest(TestCase):
 
         cleaner = DatabaseCleaner("test_database", aws_region=self.region)
 
-        print(cleaner.table_trees)
-
         child_tables = cleaner.child_tables()
         child_tables.should.have.length_of(1)
         child_tables[0].location.should.equal("s3://test-bucket/table/")
