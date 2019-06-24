@@ -101,6 +101,29 @@ class DatabaseCleanerTest(TestCase):
         child_tables[0].name.should.equal("table-foobarbaz")
 
     @mock_glue
+    def test_child_tables_same_location_reverse_order(self):
+        """ This should be 90% the same as test_child_tables_same_location,
+        the only difference is the order in which the tables are added """
+        client = boto3.client("glue", region_name=self.region)
+        database_input = self.helper.create_database_input()
+        client.create_database(**database_input)
+
+        table2_input = self.helper.create_table_input(
+            name="table-foobarbaz", location="s3://test-bucket/table/")
+        client.create_table(**table2_input)
+
+        table1_input = self.helper.create_table_input(
+            name="table", location="s3://test-bucket/table/")
+        client.create_table(**table1_input)
+
+        cleaner = DatabaseCleaner("test_database", aws_region=self.region)
+
+        child_tables = cleaner.child_tables()
+        child_tables.should.have.length_of(1)
+        child_tables[0].location.should.equal("s3://test-bucket/table/")
+        child_tables[0].name.should.equal("table-foobarbaz")
+
+    @mock_glue
     def test_delete_tables(self):
         client = boto3.client("glue", region_name=self.region)
         database_input = self.helper.create_database_input()
