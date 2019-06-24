@@ -110,7 +110,7 @@ class Partitioner(object):
             self.session = boto3.Session(
                 profile_name=aws_profile,
                 region_name=aws_region)
-        except botocore.exceptions.ProfileNotFound as e:
+        except botocore.exceptions.ProfileNotFound as e:  # pragma: no cover
             raise GlutilError(
                 error_type="ProfileNotFound",
                 message=f"No such profile {aws_profile}.",
