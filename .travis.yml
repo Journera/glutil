@@ -10,12 +10,3 @@ install:
 - pip install google-compute-engine
 script:
 - bash test.sh
-deploy:
-  provider: pypi
-  username: journera
-  password:
-    secure: ihNpqTgh6HVObl8FtHcRG8DwCHGzzPEkVAfJBK6ax4bOhq6jdcVRU7bcUUjfVqvDzgv1a9lK2RdPfeRGblzJvgISYz8KyG3SGpxi7g/vbvjp82XDYDAAqmqoJqu+eJUf2UffwKClf7HARxgtrHClJWEOGuFdo/3CPC+J5ZWBctXGR69TZju4wu3rglzn2aQA/EsiLZF31sNnhVL4U/XIDmHaysYnLHPz+1ECxlD25FTqMcrM+PmbHcEpq6z43cuOEBlqtnnVHX2T6Th3KrcdfSaguV+G4J0k302zHds6HWddSVzLbtqdiMyspg+ZuwGWbQRvXJDQWqKchFqqzsqaIa2OwTAwgMBao48UNrjWcKspY1sJImBAMLzHJfhaHmVCsjk3cPGVpR8sIXvOTVjQHZWLDBIBJ2QIw+EC3GgRsMwZs386/FH35c577RQS9XIAoJ3WZBoiOhv1xo/Sa6HriUdTtdS8ZuH+epMo4eEXzGSrPARqbV0IO0N4OZLRR7OG1j0XgTSrfU/SZ2BL6jGFn/CEXtAWJKrP6PFSlPv50Lfw9jF4tlF7x6YPVt7KTSud9rbi8xTAi5sIDOsH5EarrYtFjxWp5N/MoBBJ894rwntNmi3Xi7qDQvfOlVN+e2/1LBt77Cg8B+O/AWGMEJ6C0TR2OtfX+OJJ7CVLre9acao=
-  distributions: sdist bdist_wheel
-  skip_existing: true
-  on:
-    tags: true
