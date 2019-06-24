@@ -268,6 +268,20 @@ class PartitionerTest(TestCase):
 
     @mock_s3
     @mock_glue
+    def test_delete_nonexistent_partition(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+
+        partition = Partition("2019", "01", "02", "03", f"s3://{self.bucket}/{self.table}/2019/01/02/03/")
+
+        result = partitioner.delete_partitions([partition])
+        result.should.have.length_of(1)
+        result[0]["PartitionValues"].should.equal(["2019", "01", "02", "03"])
+        result[0]["ErrorDetail"]["ErrorCode"].should.equal("EntityNotFoundException")
+
+    @mock_s3
+    @mock_glue
     def test_bad_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()

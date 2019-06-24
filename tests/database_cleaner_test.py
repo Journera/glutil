@@ -138,6 +138,9 @@ class DatabaseCleanerTest(TestCase):
         result = cleaner.delete_tables([table])
         result.should.have.length_of(1)
 
+        result[0]["TableName"].should.equal("table")
+        result[0]["ErrorDetail"]["ErrorCode"].should.equal("EntityNotFoundException")
+
     @mock_glue
     def tests_refresh_tree(self):
         client = boto3.client("glue", region_name=self.region)
