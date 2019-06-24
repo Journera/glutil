@@ -1,15 +1,17 @@
 dist: xenial
 language: python
 python:
-  - '3.6'
-  - '3.7'
-
+- '3.6'
+- '3.7'
 env:
-  - AWS_DEFAULT_REGION=us-east-1
+- AWS_DEFAULT_REGION=us-east-1
 install:
-  - pip install -r requirements-dev.txt
-
-  # travis and moto being weird
-  - pip install google-compute-engine
+- pip install -r requirements-dev.txt
+- pip install google-compute-engine
 script:
-  - bash test.sh
+- bash test.sh
+deploy:
+  provider: pypi
+  username: journera
+  password:
+    secure: SKNoT9gbvb8JtKjMOKJazMshvee9cy9GfxEP6nVDbqD2Gh23qu6v0QLhFTyx9loBahBkT7GL5CP/RfpsChEMJr5JWZydeBAqzDiqbecew4q/qrVwyZWGCviEFpNKNjKft7SoADdHecrBGlql4RZfsV4bkDhF8ZC92iPDPV7NvjitQRXoZD2oXgVZJG5/+UBZP1EIzuqwopfRGm036hjhNNspebLzpoG9neexjV4oAJy/H9JsBGg8dXnfTR20sR5bxK6gebUO0FIJpW/6SoBllvrcs8zAZv62xpEb2KYN2YpomirUCghzruAHTDMY+vgic+18ldxTULEjFjYejSb3J7SnWWb8w2pudVcyhqW+WeOFbCmtOLvt5SlWLnYuoPvDshx50+fWOuEuUxpzdDL7zXyI4mIU/g0z1sODbLbY/bXJFpo9DgZHXHcm89uY32gojG3JqB4azScAcOsj+HltIfSA13j4dEXe4rPA4rvTvrK9Wtr9Gcwyt0kJZRxfm6+32wM8QdpA6hEThhhkEDON7ToFDK9WkFpq6Jf10JYMuCI8XQfaKs5mNZFfrjdJuCBOjOfuRb8AcZilMvnAtc03YrIiidMyn1ERPuBgHEKVDyxzzNuhtvU0TG5RhzetgKwEe57eTv+LGqJbI7qLIVP4ChCskP7069rquEQFeFrxwUY=
