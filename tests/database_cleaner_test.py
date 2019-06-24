@@ -5,7 +5,7 @@ import boto3
 import sure  # noqa: F401
 
 from glutil import DatabaseCleaner
-from glutil.database_cleaner import Table
+from glutil.database_cleaner import Table, TableTree
 
 
 class DatabaseCleanerTest(TestCase):
@@ -215,3 +215,49 @@ class TableTest(TestCase):
 
         t7 = make_table("foo", "s3://bucket/foo", "db1")
         t7.should.equal(t1)
+
+
+class TableTreeTest(TestCase):
+    def test_create_tree_from_table(self):
+        table = make_table("root", "s3://bucket/", "db1")
+
+        tree = TableTree.from_table(table)
+
+        tree.path.should.equal("")
+        tree.bucket.should.equal("bucket")
+        tree.tables.should.equal([table])
+
+    def test_add_table(self):
+        tree = TableTree("bucket", "")
+        root_table = make_table("root", "s3://bucket/", "db1")
+
+        tree.add_table(root_table)
+        tree.tables.should.equal([root_table])
+        tree.child_tables().should.be.empty
+
+        child_table = make_table("child", "s3://bucket/child/", "db1")
+        tree.add_table(child_table)
+        tree.tables.should.equal([root_table])
+        tree.child_tables().should.equal([child_table])
+
+        nested_child = make_table("nested_child", "s3://bucket/deeply/nested/table/", "db1")
+        tree.add_table(nested_child)
+        tree.child_tables().should.equal([child_table, nested_child])
+
+    def test_add_table_outside_bucket(self):
+        root_table = make_table("root", "s3://bucket/", "db1")
+        tree = TableTree.from_table(root_table)
+
+        other_bucket_table = make_table("other", "s3://other-bucket/", "db1")
+        tree.add_table.when.called_with(other_bucket_table).should.throw(
+            ValueError,
+            "add_table() can only add tables in the same bucket. tree is 'bucket'. table is 'other-bucket'")
+
+    def test_add_table_outside_tree(self):
+        root_table = make_table("root", "s3://bucket/root/", "db1")
+        tree = TableTree.from_table(root_table)
+
+        other_tree_table = make_table("other", "s3://bucket/other/", "db1")
+        tree.add_table.when.called_with(other_tree_table).should.throw(
+            ValueError,
+            "add_table() can only add tables in the same tree. tree is 'root/'. table is 'other/'")

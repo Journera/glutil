@@ -74,8 +74,18 @@ class TableTree(object):
     because it allows you to find all of the erroneously created tables.
     """
 
+    @classmethod
+    def from_table(cls, table):
+        tree = cls(table.bucket, table.path)
+        tree.add_table(table)
+        return tree
+
     def __init__(self, bucket, path):
         self.bucket = bucket
+
+        if path and path[-1] != "/":
+            path = path + "/"
+
         self.path = path
         self.tables = []
         self.children = {}
@@ -83,22 +93,22 @@ class TableTree(object):
     def __repr__(self):  # pragma: no cover
         return f"<TableTree: {self.bucket} / {self.path}, {len(self.tables)} table(s)>"
 
-    def add_path(self, path, table):
-        if path[-1] == "/":
-            path = path[:-1]
+    def add_table(self, table):
+        if table.bucket != self.bucket:
+            raise ValueError(f"add_table() can only add tables in the same bucket. tree is '{self.bucket}'. table is '{table.bucket}'.")
+
+        path = table.path
 
         if self.path == path:
             self.tables.append(table)
             return
 
         if not path.startswith(self.path):
-            print(f"no, {self.path} {path}")
-            raise Exception(
-                "path does not start with same segment as current node")
+            raise ValueError(f"add_table() can only add tables in the same tree. tree is '{self.path}'. table is '{path}'.")
 
         rest = path[len(self.path):]
-        if rest[0] == "/":
-            rest = rest[1:]
+        # if rest[0] == "/":
+        #     rest = rest[1:]
 
         segments = rest.split("/")
         next_segment = segments[0]
@@ -106,14 +116,12 @@ class TableTree(object):
         # does it exist?
         if next_segment not in self.children:
             next_path = self.path
-            if next_path != "":
-                next_path += "/"
             next_path += next_segment
 
             next_map = TableTree(self.bucket, next_path)
             self.children[next_segment] = next_map
 
-        self.children[next_segment].add_path(path, table)
+        self.children[next_segment].add_table(table)
 
     def child_tables(self):
         tables = []
@@ -178,18 +186,10 @@ class DatabaseCleaner(object):
 
         trees = {}
         for table in s3_tables:
-            location = table.location
+            if table.bucket not in trees:
+                trees[table.bucket] = TableTree(table.bucket, "")
 
-            # separate bucket and path from location
-            path = location[len("s3://"):]
-            segments = path.split("/")
-            bucket = segments[0]
-            bucket_path = "/".join(segments[1:])
-
-            if bucket not in trees:
-                trees[bucket] = TableTree(bucket, "")
-
-            trees[bucket].add_path(bucket_path, table)
+            trees[table.bucket].add_table(table)
 
         return trees
 
