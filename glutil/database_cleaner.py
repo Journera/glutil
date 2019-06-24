@@ -14,6 +14,11 @@ class Table(object):
 
         self.database = raw["DatabaseName"]
 
+        full_path = self.location[len("s3://"):]
+        segments = full_path.split("/")
+        self.bucket = segments[0]
+        self.path = "/".join(segments[1:])
+
     def __repr__(self):  # pragma: no cover
         return f"<Table {self.database} / {self.name} : {self.location}>"
 

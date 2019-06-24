@@ -170,31 +170,47 @@ class DatabaseCleanerTest(TestCase):
         cleaner.child_tables().should.be.empty
 
 
+def make_table(name, location, database):
+    return Table({
+        "Name": name,
+        "DatabaseName": database,
+        "StorageDescriptor": {"Location": location},
+    })
+
+
 class TableTest(TestCase):
-    def make_table(self, name, location, database):
-        return Table({
-            "Name": name,
-            "DatabaseName": database,
-            "StorageDescriptor": {"Location": location},
-        })
+    def test_location_parsing(self):
+        t1 = make_table("foo", "s3://bucket/foo/", "db1")
+        t1.bucket.should.equal("bucket")
+        t1.path.should.equal("foo/")
+
+        t2 = make_table("bar", "s3://other-bucket/nested/deeply/bar/", "db1")
+        t2.bucket.should.equal("other-bucket")
+        t2.path.should.equal("nested/deeply/bar/")
+
+        t3 = make_table("baz", "s3://bucket/no/trailing/slash", "db1")
+        t3.path.should.equal("no/trailing/slash/")
+
+        t4 = make_table("buzz", "s3://bucket/", "db1")
+        t4.path.should.equal("")
 
     def test_table_comparisons(self):
-        t1 = self.make_table("foo", "s3://bucket/foo/", "db1")
-        t2 = self.make_table("bar", "s3://bucket/bar/", "db1")
+        t1 = make_table("foo", "s3://bucket/foo/", "db1")
+        t2 = make_table("bar", "s3://bucket/bar/", "db1")
         (t1 > t2).should.be.false
         (t1 < t2).should.be.true
 
-        t3 = self.make_table("groo", "s3://bucket/foo/", "db1")
+        t3 = make_table("groo", "s3://bucket/foo/", "db1")
         (t1 > t3).should.be.true
 
-        t4 = self.make_table("foo", "s3://bucket/z-foo/", "db1")
+        t4 = make_table("foo", "s3://bucket/z-foo/", "db1")
         (t1 > t4).should.be.true
 
-        t5 = self.make_table("foo", "s3://bucket/foo/", "db1")
+        t5 = make_table("foo", "s3://bucket/foo/", "db1")
         t5.should.equal(t1)
 
-        t6 = self.make_table("foo", "s3://bucket/foo/", "db2")
+        t6 = make_table("foo", "s3://bucket/foo/", "db2")
         (t1 > t6).should.be.true
 
-        t7 = self.make_table("foo", "s3://bucket/foo", "db1")
+        t7 = make_table("foo", "s3://bucket/foo", "db1")
         t7.should.equal(t1)
