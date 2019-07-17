@@ -126,6 +126,15 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     @mock_s3
+    def test_find_partitions_with_bad_limit(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.partitions_on_disk.when.called_with(limit_days=-1).should.throw(ValueError)
+
+    @mock_glue
+    @mock_s3
     def test_create_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
@@ -261,6 +270,34 @@ class PartitionerTest(TestCase):
         existing_partitions.should.have.length_of(1)
         existing_partitions[0].values.should.equal(partition.values)
         existing_partitions[0].location.should.equal(partition.location)
+
+    @mock_s3
+    @mock_glue
+    def test_partitions_to_create(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        already_created = self.helper.create_many_partitions(count=10, write=True)
+        to_create = self.helper.create_many_partitions(count=3, write=True)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(already_created)
+
+        found = partitioner.partitions_on_disk()
+        wants_to_create = partitioner.partitions_to_create(found)
+
+        set(wants_to_create).should.equal(set(to_create))
+
+    @mock_s3
+    @mock_glue
+    def test_partitions_to_create_empty_input(self):
+        # this is to test the early exit
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        wants_to_create = partitioner.partitions_to_create([])
+        wants_to_create.should.have.length_of(0)
 
     @mock_s3
     @mock_glue

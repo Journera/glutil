@@ -8,9 +8,7 @@ def create_found_partitions(partitioner, limit_days=0, dry_run=False):
     print(f"\tLooking for partitions in s3://{partitioner.bucket}/{partitioner.prefix}")
 
     found_partitions = set(partitioner.partitions_on_disk(limit_days))
-    existing_partitions = set(partitioner.existing_partitions())
-    to_create = sorted(found_partitions - existing_partitions)
-
+    to_create = sorted(partitioner.partitions_to_create(found_partitions))
     print(f"\tFound {len(to_create)} new partitions to create")
 
     # break early

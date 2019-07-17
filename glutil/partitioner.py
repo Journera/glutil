@@ -243,6 +243,33 @@ class Partitioner(object):
 
         return sorted([Partition.from_aws_response(p) for p in raw_partitions])
 
+    def partitions_to_create(self, partitions):
+        if len(partitions) == 0:
+            return []
+
+        found_partitions = []
+
+        # batch_get_partition has a limit of 1000 per call
+        groups = grouper(partitions, 1000)
+
+        for group in groups:
+            partitions_to_get = []
+            for partition in group:
+                partitions_to_get.append({"Values": partition.values})
+
+            resp = self.glue.batch_get_partition(
+                DatabaseName=self.database,
+                TableName=self.table,
+                PartitionsToGet=partitions_to_get)
+
+            found_partitions.extend(resp["Partitions"])
+
+        found_partitions_as_partition = [
+            Partition.from_aws_response(p) for p in found_partitions
+        ]
+
+        return set(partitions) - set(found_partitions_as_partition)
+
     def create_partitions(self, partitions):
         groups = grouper(partitions, 100)
 

@@ -26,7 +26,9 @@ REQUIRED = [
 ]
 
 TEST_REQUIRED = [
-    'moto>=1.3.13',
+    # TODO: when moto releases a version that supports
+    #       glue.batch_get_partition update this to use upstream moto.
+    'moto @ git+https://github.com/Journera/moto@glue-batch-get-partition#egg=moto'
     'nose>=1.3.7',
     'faker>1',
     'coverage>=4.5',
