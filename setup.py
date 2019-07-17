@@ -26,15 +26,13 @@ REQUIRED = [
 ]
 
 TEST_REQUIRED = [
-    # TODO: when moto releases a version that supports
-    #       glue.batch_create_partition and glue.batch_delete_table,
-    #       update this to use that version of moto instead
-    'moto @ git+https://github.com/Journera/moto@glue-endpoints#egg=moto',
+    'moto>=1.3.13',
     'nose>=1.3.7',
     'faker>1',
     'coverage>=4.5',
     'sure>=1.4',
     'flake8>=3.7',
+    'pendulum>2.0',
 ]
 
 # The rest you shouldn't have to touch too much :)
