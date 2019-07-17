@@ -98,6 +98,8 @@ class LambdaTest(TestCase):
     @mock_glue
     @mock_s3
     def test_create_partitions_error_output(self):
+        """ Technically this should _never_ happen, but on the off chance that
+        batch_get_partition ever returns bad values we'll leave it in"""
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 
@@ -110,8 +112,8 @@ class LambdaTest(TestCase):
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         partitioner.create_partitions([partitions[0]])
-        mock = MagicMock(return_value=[])
-        partitioner.existing_partitions = mock
+        mock = MagicMock(return_value=partitions)
+        partitioner.partitions_to_create = mock
 
         with captured_output() as (out, err):
             create_found_partitions(partitioner)
