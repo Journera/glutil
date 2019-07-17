@@ -1,6 +1,7 @@
 import re
 import boto3
 import botocore
+import datetime
 from functools import total_ordering
 from .utils import grouper, GlutilError, paginated_response
 
@@ -102,6 +103,8 @@ class PartitionMap(object):
 
 
 class Partitioner(object):
+    PARTITION_MATCH = r"(year=|)(?P<year>\d{4})/(month=|)(?P<month>\d{2})/(day=|)(?P<day>\d{2})/(hour=|)(?P<hour>\d{2})/"
+
     def __init__(self, database, table, aws_profile=None, aws_region=None):
         self.database = database
         self.table = table
@@ -139,6 +142,9 @@ class Partitioner(object):
 
         self.bucket, self.prefix = self._get_bucket()
 
+        if self.prefix != "" and self.prefix[-1] != "/":
+            self.prefix += "/"
+
     def _get_bucket(self):
         s3_arn = self.table_definition['Table']['StorageDescriptor']['Location']
 
@@ -148,30 +154,66 @@ class Partitioner(object):
 
         return bucket_name, prefix
 
-    def partitions_on_disk(self):
-        if self.prefix != "" and self.prefix[-1] != "/":
-            self.prefix += "/"
+    def partitions_on_disk(self, limit_days=0):
+        """Find partitions in S3.
 
-        key_regex = r"(year=|)(?P<year>\d{4})/(month=|)(?P<month>\d{2})/(day=|)(?P<day>\d{2})/(hour=|)(?P<hour>\d{2})/"
+        This function will crawl S3 for any partitions matching the following
+        path formats:
+
+        -   year=yyyy/month=mm/day=dd/hour=hh/
+        -   yyyy/mm/dd/hh/
+
+        And will return a :obj:`list` of :obj:`Partition` matching those found
+        paths.
+
+        Args:
+            limit_days (`int`): Providing a value other than 0 will limit the
+                search to only partitions created in the past N days.
+        """
+
+        if not isinstance(limit_days, int) or limit_days < 0:
+            raise ValueError("invalid value for limit_days, must be an integer of >=0")
+
+        if limit_days == 0:
+            return self._all_partitions_on_disk()
+
+        # determine all possible path prefixes for days
+        partition_prefixes = []
+        today = datetime.datetime.now()
+        for i in range(0, limit_days + 1):
+            date_delta = datetime.timedelta(days=i)
+            partition_date = today - date_delta
+            hive_format = partition_date.strftime("year=%Y/month=%m/day=%d/")
+            flat_format = partition_date.strftime("%Y/%m/%d/")
+            partition_prefixes.append(hive_format)
+            partition_prefixes.append(flat_format)
+
         partitions = []
-        for year_match in self._prefix_match(self.prefix, "year", r"\d{4}"):
-            for month_match in self._prefix_match(
-                    year_match, "month", r"\d{2}"):
-                for day_match in self._prefix_match(
-                        month_match, "day", r"\d{2}"):
-                    for hour_match in self._prefix_match(
-                            day_match, "hour", r"\d{2}"):
-                        match = re.search(key_regex, hour_match)
-                        location = "s3://{}/{}".format(self.bucket, hour_match)
-                        partitions.append(Partition(
-                            match.group("year"),
-                            match.group("month"),
-                            match.group("day"),
-                            match.group("hour"),
-                            location,
-                        ))
+        for prefix in partition_prefixes:
+            for hour_match in self._prefix_match(f"{self.prefix}{prefix}", "hour", r"\d{2}"):
+                partitions.append(self._partition_from_path(hour_match))
 
         return partitions
+
+    def _all_partitions_on_disk(self):
+        partitions = []
+        for year_match in self._prefix_match(self.prefix, "year", r"\d{4}"):
+            for month_match in self._prefix_match(year_match, "month", r"\d{2}"):
+                for day_match in self._prefix_match(month_match, "day", r"\d{2}"):
+                    for hour_match in self._prefix_match(day_match, "hour", r"\d{2}"):
+                        partitions.append(self._partition_from_path(hour_match))
+
+        return partitions
+
+    def _partition_from_path(self, path):
+        match = re.search(self.PARTITION_MATCH, path)
+        location = f"s3://{self.bucket}/{path}"
+        return Partition(
+            match.group("year"),
+            match.group("month"),
+            match.group("day"),
+            match.group("hour"),
+            location)
 
     def _prefix_match(self, prefix, partition_name, partition_value_regex):
         regex = "({}=|){}/".format(partition_name, partition_value_regex)

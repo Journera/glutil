@@ -45,6 +45,12 @@ class Cli(object):
         add_database_arg(create_partitions_parser)
         add_table_arg(create_partitions_parser)
         add_flag_args(create_partitions_parser)
+        create_partitions_parser.add_argument(
+            "--limit-days",
+            "-l",
+            type=int,
+            default=0,
+            help="Limit the number of days in the past to search for new partitions. (0 = no limit)")
 
         delete_all_partitions_parser = subparsers.add_parser(
             "delete-all-partitions",
@@ -100,7 +106,7 @@ class Cli(object):
 
     def create_partitions(self, args):
         partitioner = self.get_partitioner(args)
-        create_found_partitions(partitioner, dry_run=args.dry_run)
+        create_found_partitions(partitioner, dry_run=args.dry_run, limit_days=args.limit_days)
 
     def delete_all_partitions(self, args):
         partitioner = self.get_partitioner(args)

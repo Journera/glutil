@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, call, ANY
 from moto import mock_s3, mock_glue
 from .helper import GlueHelper
 import boto3
+import pendulum
 import sure  # noqa: F401
 
 from glutil import Partitioner, Partition, GlutilError
@@ -63,7 +64,8 @@ class PartitionerTest(TestCase):
         # partitions = self.helper.create_many_partitions(count=10)
         partitions = []
         for i in range(1, 11):
-            partition = Partition("2019", "01", "02", "03", f"s3://{self.bucket}/{self.table}/year=2019/month=01/day=02/hour=03/")
+            partition = Partition("2019", "01", f"{i:02d}", "03", f"s3://{self.bucket}/{self.table}/year=2019/month=01/day={i:02d}/hour=03/")
+            print(partition.location)
             self.helper.write_partition_to_s3(partition)
             partitions.append(partition)
 
@@ -71,6 +73,56 @@ class PartitionerTest(TestCase):
         found_partitions = partitioner.partitions_on_disk()
 
         set(found_partitions).should.equal(set(partitions))
+
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_with_limit_hive_format(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        today = pendulum.now()
+
+        partitions = []
+        for i in range(1, 11):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+            hour = "03"
+
+            partition = Partition(year, month, day, hour, f"s3://{self.bucket}/{self.table}/year={year}/month={month}/day={day}/hour={hour}/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk(limit_days=7)
+        found_partitions.should.have.length_of(7)
+        set(found_partitions).should.equal(set(partitions[0:7]))
+
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_with_limit_flat_format(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+
+        today = pendulum.now()
+
+        partitions = []
+        for i in range(1, 11):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+            hour = "03"
+
+            partition = Partition(year, month, day, hour, f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/{hour}/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk(limit_days=4)
+        found_partitions.should.have.length_of(4)
+        set(found_partitions).should.equal(set(partitions[0:4]))
 
     @mock_glue
     @mock_s3

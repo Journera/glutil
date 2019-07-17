@@ -4,10 +4,11 @@ from moto import mock_s3, mock_glue
 from .helper import GlueHelper, captured_output
 from collections import namedtuple
 import boto3
+import pendulum
 import sure  # noqa: F401
 import sys
 
-from glutil import Cli, Partitioner, DatabaseCleaner, GlutilError
+from glutil import Cli, Partitioner, Partition, DatabaseCleaner, GlutilError
 from glutil.database_cleaner import Table
 from glutil.partitioner import PartitionMap
 
@@ -133,6 +134,40 @@ class CliTest(TestCase):
         exists = fresh_partitioner.existing_partitions()
 
         set(exists).should.equal(set(partitions))
+
+    @mock_glue
+    @mock_s3
+    def test_create_partitions_limit_days(self):
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database_and_table()
+        cli = Cli()
+
+        today = pendulum.now()
+
+        partitions = []
+        for i in range(1, 11):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+            hour = "03"
+
+            partition = Partition(year, month, day, hour, f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/{hour}/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitions.sort()
+
+        expected_output = f"Running Partitioner for {self.database}.{self.table}\n\tLooking for partitions in s3://{self.bucket}/{self.table}/\n\tFound 7 new partitions to create\n\t"
+        expected_output += ", ".join(map(str, partitions[3:]))
+
+        out, err = self.get_cmd_output(cli, ["create-partitions", self.database, self.table, "--limit-days=7"])
+        out.should.equal(expected_output)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found = partitioner.existing_partitions()
+        found.should.have.length_of(7)
+        set(found).should.equal(set(partitions[3:]))
 
     @mock_glue
     @mock_s3
