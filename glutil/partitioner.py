@@ -34,9 +34,6 @@ class Partition(object):
         return self.values == other.values and self.location == other.location
 
     def _cmp(self, other):
-        if self.values == other.values and self.location == other.location:
-            return 0
-
         if self.values > other.values:
             return 1
         elif self.values < other.values:
@@ -146,6 +143,7 @@ class Partitioner(object):
                 source=e)
 
         self.storage_descriptor = self.table_definition["Table"]["StorageDescriptor"]
+        self.partition_keys = self.table_definition["Table"]["PartitionKeys"]
 
         self.bucket, self.prefix = self._get_bucket()
 
@@ -164,11 +162,7 @@ class Partitioner(object):
     def partitions_on_disk(self, limit_days=0):
         """Find partitions in S3.
 
-        This function will crawl S3 for any partitions matching the following
-        path formats:
-
-        -   year=yyyy/month=mm/day=dd/hour=hh/
-        -   yyyy/mm/dd/hh/
+        This function will crawl S3 for any partitions it can find.
 
         And will return a :obj:`list` of :obj:`Partition` matching those found
         paths.
@@ -176,6 +170,10 @@ class Partitioner(object):
         Args:
             limit_days (`int`): Providing a value other than 0 will limit the
                 search to only partitions created in the past N days.
+
+                NOTE: limit_days only works if your first three partition keys are
+                [year, month, day]. Any other first three partitions will raise
+                an exception if limit_days is non-zero.
         """
 
         if not isinstance(limit_days, int) or limit_days < 0:
@@ -184,48 +182,98 @@ class Partitioner(object):
         if limit_days == 0:
             return self._all_partitions_on_disk()
 
+        # only year/month/keys, these are the partitions
+        partition_keys = [k["Name"].lower() for k in self.partition_keys[:3]]
+        if partition_keys != ["year", "month", "day"]:
+            raise TypeError("limit_days only works on tables partitioned by year, month, and day")
+
         # determine all possible path prefixes for days
         partition_prefixes = []
         today = datetime.datetime.now()
         for i in range(0, limit_days + 1):
             date_delta = datetime.timedelta(days=i)
             partition_date = today - date_delta
-            hive_format = partition_date.strftime("year=%Y/month=%m/day=%d/")
-            flat_format = partition_date.strftime("%Y/%m/%d/")
-            partition_prefixes.append(hive_format)
-            partition_prefixes.append(flat_format)
+            values = [
+                str(partition_date.year),
+                str(partition_date.month),
+                str(partition_date.day),
+            ]
+
+            hive_format = partition_date.strftime(f"{self.prefix}year=%Y/month=%m/day=%d/")
+            flat_format = partition_date.strftime(f"{self.prefix}%Y/%m/%d/")
+            partition_prefixes.append({"prefix": hive_format, "values": values})
+            partition_prefixes.append({"prefix": flat_format, "values": values})
 
         partitions = []
-        for prefix in partition_prefixes:
-            for hour_match in self._prefix_match(f"{self.prefix}{prefix}", "hour", r"\d{2}"):
-                partitions.append(self._partition_from_path(hour_match))
+        if len(self.partition_keys) == 3:
+            for prefix in partition_prefixes:
+                partition = self._confirm_partition(**prefix)
+                if partition:
+                    partitions.append(partition)
+        else:
+            for prefix in partition_prefixes:
+                partitions.extend(self._partition_finder(prefix["prefix"], idx=3, values=prefix["values"]))
+
+        return partitions
+
+    def _partition_finder(self, prefix, idx=0, values=[]):
+        strict = len(self.partition_keys) == 1
+
+        this_key = self.partition_keys[idx]
+        regex = r".*"
+        if this_key["Type"] == "int":
+            regex = r"\d{1,}"
+        key = this_key["Name"]
+
+        last_key = idx == len(self.partition_keys) - 1
+        partitions = []
+        for match in self._prefix_match(prefix, key, regex, strict=strict):
+            these_values = values.copy()
+            these_values.append(match["value"])
+            if last_key:
+                this_prefix = match["prefix"]
+                partitions.append(Partition(
+                    these_values,
+                    f"s3://{self.bucket}/{this_prefix}",
+                ))
+            else:
+                partitions.extend(self._partition_finder(match["prefix"], idx=idx + 1, values=these_values))
 
         return partitions
 
     def _all_partitions_on_disk(self):
-        partitions = []
-        for year_match in self._prefix_match(self.prefix, "year", r"\d{4}"):
-            for month_match in self._prefix_match(year_match, "month", r"\d{2}"):
-                for day_match in self._prefix_match(month_match, "day", r"\d{2}"):
-                    for hour_match in self._prefix_match(day_match, "hour", r"\d{2}"):
-                        partitions.append(self._partition_from_path(hour_match))
+        partitions = self._partition_finder(self.prefix)
+
+        if not partitions and len(self.partition_keys) == 1:
+            flat_partitions = self._flat_partitions_on_disk()
+            partitions.extend(flat_partitions)
 
         return partitions
 
-    def _partition_from_path(self, path):
-        match = re.search(self.PARTITION_MATCH, path)
-        location = f"s3://{self.bucket}/{path}"
-        return Partition(
-            [
-                match.group("year"),
-                match.group("month"),
-                match.group("day"),
-                match.group("hour"),
-            ],
-            location)
+    def _flat_partitions_on_disk(self):
+        resp = self.s3.list_objects_v2(Bucket=self.bucket, Prefix=self.prefix)
 
-    def _prefix_match(self, prefix, partition_name, partition_value_regex):
-        regex = "({}=|){}/".format(partition_name, partition_value_regex)
+        items = set()
+
+        prefix_len = len(self.prefix)
+        for obj in resp["Contents"]:
+            name = obj["Key"][prefix_len:]
+            splits = name.split("/")
+            location_suffix = "/".join(splits[:-1])
+            partition_key = "-".join(splits[:-1])
+
+            partition = Partition(
+                [partition_key],
+                f"s3://{self.bucket}/{self.prefix}{location_suffix}/")
+            items.add(partition)
+
+        return list(items)
+
+    def _prefix_match(self, prefix, partition_name, partition_value_regex, strict=False):
+        base_regex = "({}=|)({})/"
+        if strict:
+            base_regex = "({}=)({})/"
+        regex = base_regex.format(partition_name, partition_value_regex)
 
         resp = self.s3.list_objects_v2(
             Bucket=self.bucket, Delimiter="/", Prefix=prefix)
@@ -237,10 +285,18 @@ class Partitioner(object):
         prefix_len = len(prefix)
         for obj in resp["CommonPrefixes"]:
             name = obj["Prefix"][prefix_len:]
-            if re.match(regex, name):
-                items.append(obj["Prefix"])
+            match = re.search(regex, name)
+            if match:
+                items.append({"prefix": obj["Prefix"], "value": match.group(2)})
 
         return items
+
+    def _confirm_partition(self, prefix, values):
+        resp = self.s3.list_objects_v2(
+            Bucket=self.bucket, Delimiter="/", Prefix=prefix)
+        if resp["KeyCount"] == 0:
+            return None
+        return Partition(values, f"s3://{self.bucket}/{prefix}")
 
     def existing_partitions(self):
         args = {

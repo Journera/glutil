@@ -47,12 +47,22 @@ Ideally these will be removed in the future to enable use with more diverse sets
 
 1.  Your partition keys are `[year, month, day, hour]`.
 
-1.  Your partitions are stored in one of these two path schemas, assuming your table is located at `s3://bucket/table/`:
+1.  Your partitions are stored in one of two ways (examples assume your table's location is `s3://bucket/table/`):
 
-    ```
-    s3://bucket/table/YYYY/MM/DD/HH/
-    s3://bucket/table/year=YYYY/month=MM/day=DD/hour=HH/
-    ```
+    1.  Partitions are stored in `key=value` form or pathed similarly (examples below):
+
+        ```
+        s3://bucket/table/YYYY/MM/DD/HH/
+        s3://bucket/table/year=YYYY/month=MM/day=DD/hour=HH/
+        ```
+
+    2.  You have a single partition key, which is your path with slashes changed into dashes (examples below):
+
+        ```
+        s3://bucket/table/YYYY/MM/DD/HH/ => partition value of YYYY-MM-DD-HH
+        ```
+
+
 
 ## IAM Permissions
 

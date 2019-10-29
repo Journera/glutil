@@ -27,6 +27,7 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     def test_init(self):
+        """Confirm Partitioner.__init__ grabs table data from AWS"""
         self.helper.make_database_and_table()
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
@@ -36,6 +37,7 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     def test_init_no_table(self):
+        """Partitioner.__init__ should raise an error when no table exists"""
         with self.assertRaises(GlutilError) as context:
             Partitioner(self.database, self.table, aws_region=self.region)
 
@@ -565,6 +567,133 @@ class PartitionerTest(TestCase):
 
         errors.should.have.length_of(1)
         errors[0]["Partition"].should.equal(bad_partition.values)
+
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_simple_schema(self):
+        """Partitioner.partitions_on_disk should work with AWSLogs-like tables"""
+        self.s3.create_bucket(Bucket=self.bucket)
+        db_input = self.helper.create_database_input()
+        self.glue.create_database(**db_input)
+
+        table_input = self.helper.create_table_input()
+        table_input["TableInput"]["PartitionKeys"] = [
+            {"Name": "dt", "Type": "string"},
+        ]
+
+        self.glue.create_table(**table_input)
+
+        # create initial partition
+        prefix = table_input["TableInput"]["StorageDescriptor"]["Location"]
+        location = f"{prefix}/2019/01/02/"
+        s3_key = f"{location}object.json"
+        splits = s3_key[len("s3://"):].split("/", 1)
+        bucket = splits[0]
+        path = splits[1]
+
+        self.s3.put_object(
+            Body='{"foo": "bar"}',
+            Bucket=bucket,
+            Key=path,
+        )
+
+        partitions = [Partition(["2019-01-02"], location)]
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk()
+
+        set(found_partitions).should.equal(set(partitions))
+
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_single_key(self):
+        """Partitioner.partitions_on_disk should work with single-key tables, in hive-format"""
+        self.s3.create_bucket(Bucket=self.bucket)
+        db_input = self.helper.create_database_input()
+        self.glue.create_database(**db_input)
+
+        table_input = self.helper.create_table_input()
+        table_input["TableInput"]["PartitionKeys"] = [
+            {"Name": "dt", "Type": "string"},
+        ]
+
+        self.glue.create_table(**table_input)
+
+        # create initial partition
+        prefix = table_input["TableInput"]["StorageDescriptor"]["Location"]
+        location = f"{prefix}/dt=2019-01-02/"
+        s3_key = f"{location}object.json"
+        splits = s3_key[len("s3://"):].split("/", 1)
+        bucket = splits[0]
+        path = splits[1]
+
+        self.s3.put_object(
+            Body='{"foo": "bar"}',
+            Bucket=bucket,
+            Key=path,
+        )
+
+        partitions = [Partition(["2019-01-02"], location)]
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk()
+
+        set(found_partitions).should.equal(set(partitions))
+
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_with_limit_no_hour_partition(self):
+        """Partitioner.partitions_on_disk, limit_days set,
+            on a table partitioned by day, should work"""
+        self.s3.create_bucket(Bucket=self.bucket)
+        db_input = self.helper.create_database_input()
+        self.glue.create_database(**db_input)
+
+        table_input = self.helper.create_table_input(location=f"s3://{self.bucket}/{self.table}/")
+        table_input["TableInput"]["PartitionKeys"] = [
+            {"Name": "year", "Type": "string"},
+            {"Name": "month", "Type": "string"},
+            {"Name": "day", "Type": "string"},
+        ]
+
+        self.glue.create_table(**table_input)
+
+        today = pendulum.now()
+
+        partitions = []
+        for i in range(1, 11):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+
+            partition = Partition([year, month, day], f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk(limit_days=4)
+        found_partitions.should.have.length_of(4)
+        set(found_partitions).should.equal(set(partitions[0:4]))
+
+    @mock_glue
+    @mock_s3
+    def test_find_partitions_with_limit_bad_partition_keys(self):
+        """Partitioner.partitions_on_disk, limit_days set,
+            on a single-partition table raises an error"""
+        self.s3.create_bucket(Bucket=self.bucket)
+        db_input = self.helper.create_database_input()
+        self.glue.create_database(**db_input)
+
+        table_input = self.helper.create_table_input(location=f"s3://{self.bucket}/{self.table}/")
+        table_input["TableInput"]["PartitionKeys"] = [
+            {"Name": "dt", "Type": "string"},
+        ]
+
+        self.glue.create_table(**table_input)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.partitions_on_disk.when.called_with(limit_days=4).should.have.raised(TypeError)
 
 
 class PartitionTest(TestCase):
