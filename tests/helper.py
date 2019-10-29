@@ -114,11 +114,11 @@ class GlueHelper(object):
         s3_key = f"{prefix}{values[0]}/{values[1]}/{values[2]}/{values[3]}/"
         location = f"s3://{bucket}/{s3_key}"
 
-        partition = Partition(*values, location)
+        partition = Partition(values, location)
         if save:
             self.write_partition_to_s3(partition)
 
-        return Partition(*values, location)
+        return partition
 
     def write_partition_to_s3(self, partition):
         location_splits = partition.location[len("s3://"):].split("/")

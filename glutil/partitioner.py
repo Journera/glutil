@@ -10,26 +10,22 @@ from .utils import grouper, GlutilError, paginated_response
 class Partition(object):
     @classmethod
     def from_aws_response(cls, response):
-        values = response["Values"].copy()
-        values.append(response["StorageDescriptor"]["Location"])
+        partitions = response["Values"]
+        location = response["StorageDescriptor"]["Location"]
 
-        # append trailing slash, so it looks the same as the new partitions
-        if values[-1][-1] != "/":
-            values[-1] += "/"
+        if location[-1] != "/":
+            location += "/"
 
-        return cls(*values, raw=response)
+        return cls(partitions, location, raw=response)
 
-    def __init__(self, year, month, day, hour, location, raw=None):
-        self.year = year
-        self.month = month
-        self.day = day
-        self.hour = hour
+    def __init__(self, partitions, location, raw=None):
+        self.partitions = list(partitions)
         self.location = location
         self.raw = raw
 
     def __str__(self):
-        return "[{}, {}, {}, {}]".format(
-            self.year, self.month, self.day, self.hour)
+        joined_values = ", ".join(self.partitions)
+        return f"[{joined_values}]"
 
     def __repr__(self):
         return f"<Partition {str(self)} / {self.location}>"
@@ -38,6 +34,9 @@ class Partition(object):
         return self.values == other.values and self.location == other.location
 
     def _cmp(self, other):
+        if self.values == other.values and self.location == other.location:
+            return 0
+
         if self.values > other.values:
             return 1
         elif self.values < other.values:
@@ -63,7 +62,7 @@ class Partition(object):
 
     @property
     def values(self):
-        return [self.year, self.month, self.day, self.hour]
+        return self.partitions
 
 
 class PartitionMap(object):
@@ -81,14 +80,18 @@ class PartitionMap(object):
     def partitions_to_map(partitions):
         d = {}
         for p in set(partitions):
-            if p.year not in d:
-                d[p.year] = {}
-            if p.month not in d[p.year]:
-                d[p.year][p.month] = {}
-            if p.day not in d[p.year][p.month]:
-                d[p.year][p.month][p.day] = {}
+            num_partitions = len(p.partitions)
+            current_d = d
 
-            d[p.year][p.month][p.day][p.hour] = p
+            for i in range(0, num_partitions - 1):
+                this_part = p.partitions[i]
+
+                if this_part not in current_d:
+                    current_d[this_part] = {}
+
+                current_d = current_d[this_part]
+
+            current_d[p.partitions[-1]] = p
 
         return d
 
@@ -96,10 +99,14 @@ class PartitionMap(object):
         self.map = self.partitions_to_map(partitions)
 
     def get(self, partition):
-        return self.map.get(partition.year, {}) \
-            .get(partition.month, {}) \
-            .get(partition.day, {}) \
-            .get(partition.hour, None)
+        num_partitions = len(partition.partitions)
+        current_map = self.map
+
+        for i in range(0, num_partitions - 1):
+            this_part = partition.partitions[i]
+            current_map = current_map.get(this_part, {})
+
+        return current_map.get(partition.partitions[-1], None)
 
 
 class Partitioner(object):
@@ -209,10 +216,12 @@ class Partitioner(object):
         match = re.search(self.PARTITION_MATCH, path)
         location = f"s3://{self.bucket}/{path}"
         return Partition(
-            match.group("year"),
-            match.group("month"),
-            match.group("day"),
-            match.group("hour"),
+            [
+                match.group("year"),
+                match.group("month"),
+                match.group("day"),
+                match.group("hour"),
+            ],
             location)
 
     def _prefix_match(self, prefix, partition_name, partition_value_regex):
@@ -290,11 +299,7 @@ class Partitioner(object):
         storage_desc = self.storage_descriptor.copy()
         storage_desc["Location"] = partition.location
         return {
-            "Values": [
-                partition.year,
-                partition.month,
-                partition.day,
-                partition.hour],
+            "Values": partition.values,
             "StorageDescriptor": storage_desc,
         }
 
@@ -365,7 +370,7 @@ class Partitioner(object):
         groups = grouper(partitions_to_delete, 25)
         for group in groups:
             request_input = [
-                {"Values": [p.year, p.month, p.day, p.hour]} for p in group]
+                {"Values": p.values} for p in group]
 
             response = self.glue.batch_delete_partition(
                 DatabaseName=self.database,

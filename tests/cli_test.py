@@ -154,7 +154,7 @@ class CliTest(TestCase):
             day = partition_date.strftime("%d")
             hour = "03"
 
-            partition = Partition(year, month, day, hour, f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/{hour}/")
+            partition = Partition([year, month, day, hour], f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/{hour}/")
             self.helper.write_partition_to_s3(partition)
             partitions.append(partition)
 
@@ -578,7 +578,8 @@ class CliTest(TestCase):
         expected_output = "Found 5 moved partitions"
         partitions_to_move = partitions[0:5]
         for p in partitions_to_move:
-            new_location = f"s3://old-bucket/old-table/{p.year}/{p.month}/{p.day}/{p.hour}/"
+            subpath = "/".join(p.values)
+            new_location = f"s3://old-bucket/old-table/{subpath}/"
             p.location = new_location
             expected_output += f"\n\t{p}"
 
@@ -608,7 +609,8 @@ class CliTest(TestCase):
         expected_output = "Found 5 moved partitions"
         partitions_to_move = partitions[0:5]
         for p in partitions_to_move:
-            new_location = f"s3://old-bucket/old-table/{p.year}/{p.month}/{p.day}/{p.hour}/"
+            subpath = "/".join(p.values)
+            new_location = f"s3://old-bucket/old-table/{subpath}/"
             p.location = new_location
             expected_output += f"\n\t{p}"
 

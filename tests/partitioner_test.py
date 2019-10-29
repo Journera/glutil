@@ -64,7 +64,7 @@ class PartitionerTest(TestCase):
         # partitions = self.helper.create_many_partitions(count=10)
         partitions = []
         for i in range(1, 11):
-            partition = Partition("2019", "01", f"{i:02d}", "03", f"s3://{self.bucket}/{self.table}/year=2019/month=01/day={i:02d}/hour=03/")
+            partition = Partition(["2019", "01", f"{i:02d}", "03"], f"s3://{self.bucket}/{self.table}/year=2019/month=01/day={i:02d}/hour=03/")
             print(partition.location)
             self.helper.write_partition_to_s3(partition)
             partitions.append(partition)
@@ -90,7 +90,7 @@ class PartitionerTest(TestCase):
             day = partition_date.strftime("%d")
             hour = "03"
 
-            partition = Partition(year, month, day, hour, f"s3://{self.bucket}/{self.table}/year={year}/month={month}/day={day}/hour={hour}/")
+            partition = Partition([year, month, day, hour], f"s3://{self.bucket}/{self.table}/year={year}/month={month}/day={day}/hour={hour}/")
             self.helper.write_partition_to_s3(partition)
             partitions.append(partition)
 
@@ -115,7 +115,7 @@ class PartitionerTest(TestCase):
             day = partition_date.strftime("%d")
             hour = "03"
 
-            partition = Partition(year, month, day, hour, f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/{hour}/")
+            partition = Partition([year, month, day, hour], f"s3://{self.bucket}/{self.table}/{year}/{month}/{day}/{hour}/")
             self.helper.write_partition_to_s3(partition)
             partitions.append(partition)
 
@@ -247,7 +247,8 @@ class PartitionerTest(TestCase):
         self.glue.create_table(**table_input)
 
         partition = self.helper.create_partition_data()
-        full_location = f"s3://{self.bucket}/{self.table}/{partition.year}/{partition.month}/{partition.day}/{partition.hour}/"
+        subpath = "/".join(partition.values)
+        full_location = f"s3://{self.bucket}/{self.table}/{subpath}/"
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
 
@@ -362,7 +363,7 @@ class PartitionerTest(TestCase):
         self.helper.make_database_and_table()
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
 
-        partition = Partition("2019", "01", "02", "03", f"s3://{self.bucket}/{self.table}/2019/01/02/03/")
+        partition = Partition(["2019", "01", "02", "03"], f"s3://{self.bucket}/{self.table}/2019/01/02/03/")
 
         result = partitioner.delete_partitions([partition])
         result.should.have.length_of(1)
@@ -517,7 +518,7 @@ class PartitionerTest(TestCase):
     @mock_glue
     def test_update_partition_locations_with_non_existent_partition(self):
         self.helper.make_database_and_table()
-        bad_partition = Partition("2019", "01", "01", "01", "s3://who/cares/")
+        bad_partition = Partition(["2019", "01", "01", "01"], "s3://who/cares/")
 
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         mock = MagicMock()
@@ -534,8 +535,8 @@ class PartitionerTest(TestCase):
 
         good_old_location = "s3://old-bucket/table/data1/"
         good_new_location = f"s3://{self.bucket}/{self.table}/2019-01-01-01/"
-        good_partition = Partition("2019", "01", "01", "01", good_old_location)
-        bad_partition = Partition("2018", "02", "02", "02", "s3://old-bucket/table/data2/")
+        good_partition = Partition(["2019", "01", "01", "01"], good_old_location)
+        bad_partition = Partition(["2018", "02", "02", "02"], "s3://old-bucket/table/data2/")
 
         self.glue.create_partition(
             DatabaseName=self.database,
@@ -568,16 +569,16 @@ class PartitionerTest(TestCase):
 
 class PartitionTest(TestCase):
     def test_partition_comparisons(self):
-        p1 = Partition("2019", "01", "01", "01", "s3://bucket/table/")
-        p2 = Partition("2019", "02", "02", "02", "s3://bucket/table2/")
+        p1 = Partition(["2019", "01", "01", "01"], "s3://bucket/table/")
+        p2 = Partition(["2019", "02", "02", "02"], "s3://bucket/table2/")
         (p1 > p2).should.be.false
         (p1 < p2).should.be.true
 
-        p3 = Partition("2019", "01", "01", "01", "s3://bucket/table/")
+        p3 = Partition(["2019", "01", "01", "01"], "s3://bucket/table/")
         (p1 == p3).should.be.true
         p1._cmp(p3).should.equal(0)
 
-        p4 = Partition("2019", "01", "01", "01", "s3://bucket/z-table/")
+        p4 = Partition(["2019", "01", "01", "01"], "s3://bucket/z-table/")
         (p1 > p4).should.be.true
         (p4 > p1).should.be.false
 
@@ -590,10 +591,10 @@ class PartitionTest(TestCase):
         }
 
         partition = Partition.from_aws_response(normal_aws_response)
-        partition.year.should.equal("2019")
-        partition.month.should.equal("01")
-        partition.day.should.equal("02")
-        partition.hour.should.equal("03")
+        partition.values[0].should.equal("2019")
+        partition.values[1].should.equal("01")
+        partition.values[2].should.equal("02")
+        partition.values[3].should.equal("03")
         partition.location.should.equal("s3://bucket/location/2019/01/02/03/")
 
         # Conform location gets normalized by Partition
@@ -604,10 +605,10 @@ class PartitionTest(TestCase):
             },
         }
         partition2 = Partition.from_aws_response(bad_location_aws_response)
-        partition2.year.should.equal("2019")
-        partition2.month.should.equal("01")
-        partition2.day.should.equal("02")
-        partition2.hour.should.equal("03")
+        partition2.values[0].should.equal("2019")
+        partition2.values[1].should.equal("01")
+        partition2.values[2].should.equal("02")
+        partition2.values[3].should.equal("03")
         partition2.location.should.equal("s3://bucket/location/2019/01/02/03/")
 
         partition2.should.equal(partition)
