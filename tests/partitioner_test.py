@@ -79,6 +79,7 @@ class PartitionerTest(TestCase):
     @mock_glue
     @mock_s3
     def test_find_partitions_with_limit_hive_format(self):
+        """Partitioner.partitions_on_disk() with limit days set should work on hive-formatted partitions"""
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 
@@ -103,7 +104,42 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     @mock_s3
+    def test_find_partitions_with_limit_hive_format_capital_keys(self):
+        """Partitioner.partitions_on_disk() with limit days set should work on hive-formatted partitions where they keys are not lowercase"""
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database()
+        self.helper.make_table(partition_keys=[
+            {"Name": "Year", "Type": "int"},
+            {"Name": "Month", "Type": "int"},
+            {"Name": "Day", "Type": "int"},
+            {"Name": "Hour", "Type": "int"},
+        ])
+
+        today = pendulum.now()
+
+        partitions = []
+        for i in range(1, 11):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+            hour = "03"
+
+            partition = Partition([year, month, day, hour], f"s3://{self.bucket}/{self.table}/Year={year}/Month={month}/Day={day}/Hour={hour}/")
+            self.helper.write_partition_to_s3(partition)
+            partitions.append(partition)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk(limit_days=7)
+        print(found_partitions)
+        print(partitions[0:7])
+        found_partitions.should.have.length_of(7)
+        set(found_partitions).should.equal(set(partitions[0:7]))
+
+    @mock_glue
+    @mock_s3
     def test_find_partitions_with_limit_flat_format(self):
+        """Partitioner.partitions_on_disk() with limit days set should work with flat-formatted partitions"""
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()
 

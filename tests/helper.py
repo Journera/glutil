@@ -31,6 +31,7 @@ class GlueHelper(object):
             database=None,
             name=None,
             random_name=False,
+            partition_keys=[],
             location=None):
         if not name:
             if self.default_table and not random_name:
@@ -47,6 +48,14 @@ class GlueHelper(object):
             path = self.faker.uri_path()
             location = "s3://{}/{}".format(self.default_bucket, path)
 
+        if not partition_keys:
+            partition_keys = [
+                dict(Name="year", Type="int"),
+                dict(Name="month", Type="int"),
+                dict(Name="day", Type="int"),
+                dict(Name="hour", Type="int")
+            ]
+
         return dict(
             DatabaseName=database,
             TableInput=dict(
@@ -62,12 +71,23 @@ class GlueHelper(object):
                     OutputFormat="org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
                     Location=location,
                 ),
-                PartitionKeys=[
-                    dict(Name="year", Type="int"),
-                    dict(Name="month", Type="int"),
-                    dict(Name="day", Type="int"),
-                    dict(Name="hour", Type="int")
-                ]))
+                PartitionKeys=partition_keys))
+
+    def make_table(self, database_name=None, name=None, partition_keys=[], bucket=None, prefix=None):
+        if not name:
+            name = self.default_table
+
+        if not bucket:
+            bucket = self.default_bucket
+        if not prefix:
+            prefix = name
+
+        location = f"s3://{bucket}/{prefix}/"
+
+        client = boto3.client("glue", region_name="us-east-1")
+
+        table_input = self.create_table_input(database=database_name, name=name, location=location, partition_keys=partition_keys)
+        client.create_table(**table_input)
 
     def create_database_input(self, database_name=None):
         if not database_name:
@@ -76,6 +96,12 @@ class GlueHelper(object):
         return dict(DatabaseInput=dict(
             Name=database_name,
             Description="You know, for testing"))
+
+    def make_database(self, database_name=None):
+        client = boto3.client("glue", region_name="us-east-1")
+
+        database_input = self.create_database_input(database_name=database_name)
+        client.create_database(**database_input)
 
     def make_database_and_table(self, database_name=None, table_name=None, bucket=None, prefix=None):
         if not table_name:

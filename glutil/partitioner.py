@@ -187,6 +187,10 @@ class Partitioner(object):
         if partition_keys != ["year", "month", "day"]:
             raise TypeError("limit_days only works on tables partitioned by year, month, and day")
 
+        year_key = self.partition_keys[0]["Name"]
+        month_key = self.partition_keys[1]["Name"]
+        day_key = self.partition_keys[2]["Name"]
+
         # determine all possible path prefixes for days
         partition_prefixes = []
         today = datetime.datetime.now()
@@ -194,12 +198,12 @@ class Partitioner(object):
             date_delta = datetime.timedelta(days=i)
             partition_date = today - date_delta
             values = [
-                str(partition_date.year),
-                str(partition_date.month),
-                str(partition_date.day),
+                partition_date.strftime("%Y"),
+                partition_date.strftime("%m"),
+                partition_date.strftime("%d"),
             ]
 
-            hive_format = partition_date.strftime(f"{self.prefix}year=%Y/month=%m/day=%d/")
+            hive_format = partition_date.strftime(f"{self.prefix}{year_key}=%Y/{month_key}=%m/{day_key}=%d/")
             flat_format = partition_date.strftime(f"{self.prefix}%Y/%m/%d/")
             partition_prefixes.append({"prefix": hive_format, "values": values})
             partition_prefixes.append({"prefix": flat_format, "values": values})

@@ -420,7 +420,7 @@ class CliTest(TestCase):
         root_table_input = self.helper.create_table_input(location=location)
         self.glue.create_table(**root_table_input)
 
-        table_input = self.helper.create_table_input(location=location, name=f"test_table-bazer")
+        table_input = self.helper.create_table_input(location=location, name="test_table-bazer")
         self.glue.create_table(**table_input)
 
         mock = MagicMock()
