@@ -159,7 +159,7 @@ class Partitioner(object):
 
         return bucket_name, prefix
 
-    def partitions_on_disk(self, limit_days=0):
+    def partitions_on_disk(self, limit_days=0, prefix_partitions=[]):
         """Find partitions in S3.
 
         This function will crawl S3 for any partitions it can find.
@@ -174,8 +174,11 @@ class Partitioner(object):
                 NOTE: limit_days only works if your first three partition keys are
                 [year, month, day]. Any other first three partitions will raise
                 an exception if limit_days is non-zero.
-        """
 
+            prefix_partitions (`list` of `string`): Only works with limit_days.
+                Will prepend the values as the preceding partitions before
+                year/month/day.
+        """
         if not isinstance(limit_days, int) or limit_days < 0:
             raise ValueError("invalid value for limit_days, must be an integer of >=0")
 
@@ -183,13 +186,21 @@ class Partitioner(object):
             return self._all_partitions_on_disk()
 
         # only year/month/keys, these are the partitions
-        partition_keys = [k["Name"].lower() for k in self.partition_keys[:3]]
+        prefix_partition_len = len(prefix_partitions)
+        partition_keys = [k["Name"].lower() for k in self.partition_keys[prefix_partition_len:prefix_partition_len + 3]]
         if partition_keys != ["year", "month", "day"]:
             raise TypeError("limit_days only works on tables partitioned by year, month, and day")
 
-        year_key = self.partition_keys[0]["Name"]
-        month_key = self.partition_keys[1]["Name"]
-        day_key = self.partition_keys[2]["Name"]
+        year_key = self.partition_keys[prefix_partition_len]["Name"]
+        month_key = self.partition_keys[prefix_partition_len + 1]["Name"]
+        day_key = self.partition_keys[prefix_partition_len + 2]["Name"]
+
+        this_hive_prefix = ""
+        this_flat_prefix = ""
+        for idx, value in enumerate(prefix_partitions):
+            this_key = self.partition_keys[idx]["Name"]
+            this_hive_prefix += f"{this_key}={value}/"
+            this_flat_prefix += f"{value}/"
 
         # determine all possible path prefixes for days
         partition_prefixes = []
@@ -197,26 +208,27 @@ class Partitioner(object):
         for i in range(0, limit_days + 1):
             date_delta = datetime.timedelta(days=i)
             partition_date = today - date_delta
-            values = [
+            values = prefix_partitions.copy()
+            values.extend([
                 partition_date.strftime("%Y"),
                 partition_date.strftime("%m"),
                 partition_date.strftime("%d"),
-            ]
+            ])
 
-            hive_format = partition_date.strftime(f"{self.prefix}{year_key}=%Y/{month_key}=%m/{day_key}=%d/")
-            flat_format = partition_date.strftime(f"{self.prefix}%Y/%m/%d/")
+            hive_format = partition_date.strftime(f"{self.prefix}{this_hive_prefix}{year_key}=%Y/{month_key}=%m/{day_key}=%d/")
+            flat_format = partition_date.strftime(f"{self.prefix}{this_flat_prefix}%Y/%m/%d/")
             partition_prefixes.append({"prefix": hive_format, "values": values})
             partition_prefixes.append({"prefix": flat_format, "values": values})
 
         partitions = []
-        if len(self.partition_keys) == 3:
+        if len(self.partition_keys) == prefix_partition_len + 3:
             for prefix in partition_prefixes:
                 partition = self._confirm_partition(**prefix)
                 if partition:
                     partitions.append(partition)
         else:
             for prefix in partition_prefixes:
-                partitions.extend(self._partition_finder(prefix["prefix"], idx=3, values=prefix["values"]))
+                partitions.extend(self._partition_finder(prefix["prefix"], idx=prefix_partition_len + 3, values=prefix["values"]))
 
         return partitions
 

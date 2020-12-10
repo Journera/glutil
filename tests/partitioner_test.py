@@ -173,6 +173,50 @@ class PartitionerTest(TestCase):
 
     @mock_glue
     @mock_s3
+    def test_find_partitions_with_limit_days_and_prefix(self):
+        """Partitioner.partitions_on_disk() with limit_days and prefix_partitions should find preceding partitions with hive-format names"""
+        self.s3.create_bucket(Bucket=self.bucket)
+        self.helper.make_database()
+        self.helper.make_table(partition_keys=[
+            {"Name": "region", "Type": "string"},
+            {"Name": "year", "Type": "int"},
+            {"Name": "month", "Type": "int"},
+            {"Name": "day", "Type": "int"},
+        ])
+
+        today = pendulum.now()
+
+        partitions = []
+        for i in range(1, 11):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+
+            partition_east = Partition(["us-east-1", year, month, day], f"s3://{self.bucket}/{self.table}/region=us-east-1/year={year}/month={month}/day={day}/")
+            partition_west = Partition(["us-west-2", year, month, day], f"s3://{self.bucket}/{self.table}/region=us-east-1/year={year}/month={month}/day={day}/")
+            self.helper.write_partition_to_s3(partition_east)
+            self.helper.write_partition_to_s3(partition_west)
+            partitions.append(partition_east)
+            partitions.append(partition_west)
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        found_partitions = partitioner.partitions_on_disk(limit_days=4, prefix_partitions=["us-east-1"])
+        found_partitions.should.have.length_of(4)
+
+        to_be_found = []
+        for i in range(1, 5):
+            partition_date = today.subtract(days=i)
+            year = partition_date.strftime("%Y")
+            month = partition_date.strftime("%m")
+            day = partition_date.strftime("%d")
+
+            to_be_found.append(Partition(["us-east-1", year, month, day], f"s3://{self.bucket}/{self.table}/region=us-east-1/year={year}/month={month}/day={day}/"))
+
+        set(found_partitions).should.equal(set(to_be_found))
+
+    @mock_glue
+    @mock_s3
     def test_create_partitions(self):
         self.s3.create_bucket(Bucket=self.bucket)
         self.helper.make_database_and_table()

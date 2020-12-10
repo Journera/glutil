@@ -51,6 +51,11 @@ class Cli(object):
             type=int,
             default=0,
             help="Limit the number of days in the past to search for new partitions. (0 = no limit)")
+        create_partitions_parser.add_argument(
+            "--prefix",
+            action="append",
+            default=[],
+            help="For use with --limit, add a prefix before searching for a set number of days in the past")
 
         delete_all_partitions_parser = subparsers.add_parser(
             "delete-all-partitions",
@@ -106,7 +111,7 @@ class Cli(object):
 
     def create_partitions(self, args):
         partitioner = self.get_partitioner(args)
-        create_found_partitions(partitioner, dry_run=args.dry_run, limit_days=args.limit_days)
+        create_found_partitions(partitioner, dry_run=args.dry_run, limit_days=args.limit_days, prefix_partitions=args.prefix)
 
     def delete_all_partitions(self, args):
         partitioner = self.get_partitioner(args)

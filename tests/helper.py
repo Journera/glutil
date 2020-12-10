@@ -172,12 +172,12 @@ class GlueHelper(object):
                 date.day), hour)
         return values
 
-    def create_many_partitions(self, count=10, write=False, prefix=None, bucket=None):
+    def create_many_partitions(self, count=10, write=True, prefix=None, bucket=None):
         partitions = []
         for i in range(0, count):
-            partition = self.create_partition_data(prefix=prefix, bucket=bucket)
+            partition = self.create_partition_data(prefix=prefix, bucket=bucket, save=False)
             while partition in partitions:
-                partition = self.create_partition_data(prefix=prefix, bucket=bucket)
+                partition = self.create_partition_data(prefix=prefix, bucket=bucket, save=False)
             partitions.append(partition)
             if write:
                 self.write_partition_to_s3(partition)
