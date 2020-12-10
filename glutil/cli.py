@@ -93,6 +93,15 @@ class Cli(object):
         add_table_arg(update_partitions_parser)
         add_flag_args(update_partitions_parser)
 
+        update_storage_parser = subparsers.add_parser(
+            "update-storage",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            help="After updating a table's StorageDescriptor, run this to update the partitions",
+            description=cli_text.update_storage_help)
+        add_database_arg(update_storage_parser)
+        add_table_arg(update_storage_parser)
+        add_flag_args(update_storage_parser)
+
         delete_bad_tables_parser = subparsers.add_parser(
             "delete-bad-tables",
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -119,9 +128,12 @@ class Cli(object):
         existing = partitioner.existing_partitions()
 
         if existing:
-            print("Deleting the following partitions:")
-            for partition in existing:
-                print(f"\t{str(partition)}")
+            if len(existing) < 15:
+                print("Deleting the following partitions:")
+                for partition in existing:
+                    print(f"\t{str(partition)}")
+            else:
+                print(f"Deleted {len(existing)} partitions")
         else:
             print(f"No partitions found in table {args.table}")
 
@@ -193,6 +205,15 @@ class Cli(object):
 
         if not args.dry_run:
             errors = partitioner.update_partition_locations(moved)
+            if errors:
+                print_batch_errors(errors, action="update")
+                sys.exit(1)
+
+    def update_storage(self, args):
+        partitioner = self.get_partitioner(args)
+
+        if not args.dry_run:
+            errors = partitioner.update_partition_storage_descriptors()
             if errors:
                 print_batch_errors(errors, action="update")
                 sys.exit(1)

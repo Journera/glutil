@@ -531,3 +531,54 @@ class Partitioner(object):
                     }})
 
         return errors
+
+    def update_partition_storage_descriptors(self):
+        """Update partition storage descriptors.
+
+        This function is useful for updating all partition StorageDescriptor
+        after modifying the table's StorageDescriptor.
+
+        This will simply replace all existing partitions' StorageDescriptors
+        with the one currently attached to the table.
+        """
+
+        update_cols = [
+            "Columns", "SerdeInfo", "InputFormat", "OutputFormat", "Compressed",
+        ]
+
+        args = {
+            "DatabaseName": self.database,
+            "TableName": self.table,
+        }
+        all_partitions = paginated_response(
+                self.glue.get_partitions, args, "Partitions")
+
+        errors = []
+
+        groups = grouper(all_partitions, 100)
+        for group in groups:
+            entries = []
+            for partition in group:
+                for to_del in ["CatalogId", "DatabaseName", "TableName", "CreationTime"]:
+                    if to_del in partition:
+                        del partition[to_del]
+
+                for col in update_cols:
+                    if col in self.storage_descriptor:
+                        partition["StorageDescriptor"][col] = self.storage_descriptor[col]
+
+                entries.append({
+                    "PartitionValueList": partition["Values"],
+                    "PartitionInput": partition,
+                })
+
+            response = self.glue.batch_update_partition(
+                DatabaseName=self.database,
+                TableName=self.table,
+                Entries=entries,
+            )
+
+            if "Errors" in response:
+                errors.extend(response["Errors"])
+
+        return errors

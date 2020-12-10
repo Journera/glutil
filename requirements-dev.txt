@@ -1,5 +1,5 @@
 boto3>=1.9
--e git+https://github.com/Journera/moto@glue-batch-get-partition#egg=moto
+-e git+https://github.com/Journera/moto@glue-batch-update-partition#egg=moto
 nose>=1.3.7
 faker>=1
 coverage>=4.5

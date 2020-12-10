@@ -775,6 +775,35 @@ class PartitionerTest(TestCase):
         partitioner = Partitioner(self.database, self.table, aws_region=self.region)
         partitioner.partitions_on_disk.when.called_with(limit_days=4).should.have.raised(TypeError)
 
+    @mock_glue
+    def test_update_partition_storage_descriptors(self):
+        """Partitioner.update_storage_descriptors() updates the storage descriptors of all partitions"""
+        self.helper.make_database_and_table()
+
+        partitioner = Partitioner(self.database, self.table, aws_region=self.region)
+        partitioner.create_partitions(self.helper.create_many_partitions(write=False))
+
+        # get and update table
+        columns = [
+            {"Name": "foo", "Type": "string"},
+            {"Name": "bar", "Type": "string"},
+            {"Name": "only-in-this-test", "Type": "string"},
+        ]
+
+        table = partitioner.glue.get_table(DatabaseName=self.database, Name=self.table)["Table"]
+        for key in ["DatabaseName", "CreateTime", "CreatedBy", "IsRegisteredWithLakeFormation", "CatalogId"]:
+            if key in table:
+                del table[key]
+
+        table["StorageDescriptor"]["Columns"] = columns
+        partitioner.glue.update_table(DatabaseName=self.database, TableInput=table)
+
+        errors = partitioner.update_partition_storage_descriptors()
+        errors.should.have.length_of(0)
+
+        for partition in partitioner.existing_partitions():
+            partition.raw["StorageDescriptor"]["Columns"].should.equal(columns)
+
 
 class PartitionTest(TestCase):
     def test_partition_comparisons(self):

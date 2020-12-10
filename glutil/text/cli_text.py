@@ -92,3 +92,13 @@ NOTE: this does not move the data, it will only update partitions found in the
 new location. You must move the data and update the table's location yourself,
 outside of this script.
 """
+
+
+update_storage_help = """
+Update the storage descriptor of all partitions.
+
+If the underlying table's storage definition (schema, partition scheme, serde
+info) is changed, all partitions need to be updated as well.
+
+This command will update all the existing partitions with the new data.
+"""

@@ -3,11 +3,11 @@ from .utils import print_batch_errors
 import sys
 
 
-def create_found_partitions(partitioner, limit_days=0, dry_run=False):
+def create_found_partitions(partitioner, limit_days=0, prefix_partitions=[], dry_run=False):
     print(f"Running Partitioner for {partitioner.database}.{partitioner.table}")
     print(f"\tLooking for partitions in s3://{partitioner.bucket}/{partitioner.prefix}")
 
-    found_partitions = set(partitioner.partitions_on_disk(limit_days))
+    found_partitions = set(partitioner.partitions_on_disk(limit_days=limit_days, prefix_partitions=prefix_partitions))
     to_create = sorted(partitioner.partitions_to_create(found_partitions))
     print(f"\tFound {len(to_create)} new partitions to create")
 
